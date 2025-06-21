@@ -147,28 +147,8 @@ export default function Home() {
           </Card>
         </div>
 
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4">Quick Access</h2>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/journal/new">
-              <Button>
-                <Pencil className="mr-2 h-4 w-4" /> Write Journal
-              </Button>
-            </Link>
-            <Link href="/mood-tracker">
-              <Button>
-                <BarChart className="mr-2 h-4 w-4" /> Check Mood
-              </Button>
-            </Link>
-            <Link href="/cbt-coach">
-              <Button>
-                <Brain className="mr-2 h-4 w-4" /> Start CBT
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-white p-8">
+        {/* AI Assistant Section */}
+        <div className="rounded-xl border bg-white p-8 mb-8">
           <div className="flex flex-col items-center text-center">
             <p className="text-sm text-gray-500 mb-4">
               {isRecording ? "Recording..." : isProcessing ? "Processing..." : "connecting..."}
