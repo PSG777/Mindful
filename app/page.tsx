@@ -14,94 +14,157 @@ import {
   Smile,
   Book,
   Heart,
-  Pencil,
-  BarChart,
-  Brain,
   Volume2,
-  X,
   Mic,
   MicOff,
   Loader2,
+  MessageCircle,
+  X,
 } from "lucide-react";
-import { AudioRecorderClass, sendAudioToHume, playAudioFromBase64 } from "@/lib/audio-utils";
+import Vapi from "@vapi-ai/web";
 
 export default function Home() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [transcription, setTranscription] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [error, setError] = useState("");
-  
-  const audioRecorderRef = useRef<AudioRecorderClass | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isResponding, setIsResponding] = useState(false);
+  const [status, setStatus] = useState("Ready to start your therapy session");
+  const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const vapiRef = useRef<Vapi | null>(null);
 
   useEffect(() => {
-    // Initialize audio recorder
-    audioRecorderRef.current = new AudioRecorderClass();
+    // Initialize Vapi with your public key
+    const vapi = new Vapi("aae6435f-d8cc-4072-a2f2-24123cbc14ae");
+    vapiRef.current = vapi;
+
+    vapi.on("call-start", () => {
+      setIsConnected(true);
+      setStatus("Connected - You can start speaking");
+      setError(null);
+    });
+
+    vapi.on("call-end", () => {
+      setIsConnected(false);
+      setIsListening(false);
+      setIsResponding(false);
+      setStatus("Session ended - Thank you for sharing");
+    });
+
+    vapi.on("speech-start", () => {
+      setIsListening(true);
+      setIsResponding(false);
+      setStatus("Listening to you...");
+    });
+
+    vapi.on("speech-end", () => {
+      setIsListening(false);
+      setStatus("Processing your message...");
+    });
+
+    vapi.on("message", (message: any) => {
+      if (message.type === "transcript" && message.transcript) {
+        setTranscript((prev) => {
+          const currentSpeaker = message.role === "user" ? "You" : "Therapist";
+          // If last message is same speaker, always replace it with the new transcript
+          if (
+            prev.length > 0 &&
+            prev[prev.length - 1].speaker === currentSpeaker
+          ) {
+            // Only update if the transcript changed
+            if (prev[prev.length - 1].text !== message.transcript) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  speaker: currentSpeaker,
+                  text: message.transcript,
+                },
+              ];
+            } else {
+              return prev;
+            }
+          }
+          // If last message is different speaker, add a new one
+          return [
+            ...prev,
+            {
+              speaker: currentSpeaker,
+              text: message.transcript,
+            },
+          ];
+        });
+      }
+      if (message.type === "function-call") {
+        setIsResponding(true);
+        setStatus("Therapist is responding...");
+      }
+    });
+
+    vapi.on("error", (error: any) => {
+      setError("Connection error. Please try again.");
+      setStatus("Error occurred - Please try reconnecting");
+    });
+
+    return () => {
+      if (vapi) {
+        vapi.stop();
+      }
+    };
   }, []);
 
-  const handleStartRecording = async () => {
+  const startCall = async () => {
     try {
-      setError("");
-      setIsRecording(true);
-      await audioRecorderRef.current?.startRecording();
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      setError('Failed to start recording. Please check microphone permissions.');
-      setIsRecording(false);
-    }
-  };
-
-  const handleStopRecording = async () => {
-    try {
-      setIsRecording(false);
-      setIsProcessing(true);
-      
-      const base64Audio = await audioRecorderRef.current?.stopRecording();
-      
-      if (!base64Audio) {
-        throw new Error('No audio data recorded');
-      }
-
-      // Send audio to Hume AI
-      const response = await sendAudioToHume({
-        audio: base64Audio,
-        voice: 'alloy',
-        language: 'en',
-      });
-
-      if (response.success) {
-        setTranscription(response.transcription || '');
-        setAiResponse(response.message || '');
-        
-        // Play AI response if audio URL is available
-        if (response.audioUrl) {
-          setIsPlaying(true);
-          try {
-            await playAudioFromBase64(response.audioUrl);
-          } catch (playError) {
-            console.error('Error playing audio:', playError);
-          } finally {
-            setIsPlaying(false);
-          }
+      setError(null);
+      setStatus("Connecting to your AI therapist...");
+      // Start the call, but also immediately set a timeout fallback in case event doesn't fire
+      let didConnect = false;
+      const connectTimeout = setTimeout(() => {
+        if (!didConnect) {
+          setStatus("Connected - You can start speaking");
+          setIsConnected(true);
         }
-      } else {
-        setError(response.error || 'Failed to process audio');
-      }
+      }, 3000); // fallback after 3 seconds
+      await vapiRef.current?.start({
+        model: {
+          provider: "openai",
+          model: "gpt-4",
+          messages: [
+            {
+              role: "system",
+              content: `You are a warm, empathetic AI therapist named Alex. Your role is to provide a safe, non-judgmental space for users to express their thoughts and feelings. \n\nKey guidelines:\n- Be genuinely caring and empathetic\n- Listen actively and reflect back what you hear\n- Ask thoughtful, open-ended questions\n- Validate emotions and experiences\n- Offer gentle insights when appropriate\n- Maintain professional boundaries\n- Encourage self-reflection and personal growth\n- Keep responses conversational and natural\n- If someone is in crisis, gently suggest professional help\n\nRemember: You're here to support, not diagnose or provide medical advice. Create a welcoming atmosphere where people feel heard and understood.`,
+            },
+          ],
+        },
+        voice: {
+          provider: "playht",
+          voiceId: "jennifer",
+          speed: 0.9,
+        },
+      });
+      // If the event fires, clear the fallback
+      vapiRef.current?.on("call-start", () => {
+        didConnect = true;
+        clearTimeout(connectTimeout);
+        setIsConnected(true);
+        setStatus("Connected - You can start speaking");
+        setError(null);
+      });
     } catch (error) {
-      console.error('Error stopping recording:', error);
-      setError('Failed to process audio recording');
-    } finally {
-      setIsProcessing(false);
+      setError("Failed to connect. Please check your microphone permissions and try again.");
+      setStatus("Connection failed");
     }
   };
 
-  const handleVolumeClick = () => {
-    if (aiResponse && !isPlaying) {
-      setIsPlaying(true);
-      // Replay the last AI response
-      // This would need to store the audio data for replay
-    }
+  const endCall = () => {
+    vapiRef.current?.stop();
+  };
+
+  const getStatusColor = () => {
+    if (error) return "text-red-600";
+    if (isListening) return "text-blue-600";
+    if (isResponding) return "text-green-600";
+    if (isConnected) return "text-green-600";
+    return "text-gray-600";
   };
 
   return (
@@ -147,36 +210,43 @@ export default function Home() {
           </Card>
         </div>
 
-        {/* AI Assistant Section */}
+        {/* Vapi AI Assistant Section */}
         <div className="rounded-xl border bg-white p-8 mb-8">
           <div className="flex flex-col items-center text-center">
-            <p className="text-sm text-gray-500 mb-4">
-              {isRecording ? "Recording..." : isProcessing ? "Processing..." : "connecting..."}
-            </p>
-            
-            <div className={`w-32 h-32 rounded-full mb-6 ${
-              isRecording 
-                ? 'bg-red-400 animate-pulse' 
-                : isProcessing 
-                ? 'bg-yellow-400 animate-spin' 
-                : 'bg-blue-400 animate-pulse'
-            }`}></div>
+            <p className={`text-sm mb-4 ${getStatusColor()}`}>{status}</p>
+            <div className={`w-32 h-32 rounded-full mb-6 flex items-center justify-center ${
+              isListening
+                ? "bg-blue-400 animate-pulse"
+                : isResponding
+                ? "bg-green-400 animate-pulse"
+                : isConnected
+                ? "bg-green-200"
+                : error
+                ? "bg-red-200"
+                : "bg-gray-200"
+            }`}>
+              {isListening ? (
+                <Mic className="h-16 w-16 text-white" />
+              ) : isResponding ? (
+                <MessageCircle className="h-16 w-16 text-white" />
+              ) : isConnected ? (
+                <Mic className="h-16 w-16 text-green-700" />
+              ) : error ? (
+                <X className="h-16 w-16 text-red-600" />
+              ) : (
+                <MicOff className="h-16 w-16 text-gray-400" />
+              )}
+            </div>
 
-            {/* Transcription Display */}
-            {transcription && (
-              <div className="mb-4 p-4 bg-gray-100 rounded-lg max-w-md">
-                <p className="text-sm text-gray-600 mb-2">You said:</p>
-                <p className="text-gray-800">{transcription}</p>
-              </div>
-            )}
-
-            {/* AI Response Display */}
-            {aiResponse && (
-              <div className="mb-4 p-4 bg-blue-50 rounded-lg max-w-md">
-                <p className="text-sm text-blue-600 mb-2">AI Response:</p>
-                <p className="text-blue-800">{aiResponse}</p>
-              </div>
-            )}
+            {/* Transcript Display */}
+            <div className="mb-4 max-w-md w-full">
+              {transcript.map((msg, idx) => (
+                <div key={idx} className={`mb-2 text-left ${msg.speaker === "You" ? "text-blue-700" : "text-green-700"}`}>
+                  <span className="font-semibold mr-2">{msg.speaker}:</span>
+                  <span>{msg.text}</span>
+                </div>
+              ))}
+            </div>
 
             {/* Error Display */}
             {error && (
@@ -186,49 +256,27 @@ export default function Home() {
             )}
 
             <div className="flex items-center gap-4 mt-8">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="bg-gray-100 rounded-full"
-                onClick={handleVolumeClick}
-                disabled={!aiResponse || isPlaying}
-              >
-                {isPlaying ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  <Volume2 className="h-6 w-6" />
-                )}
-              </Button>
-              
-              <div className="w-16 h-16 rounded-full bg-blue-400 flex items-center justify-center text-blue-800 font-bold text-2xl">
-                M
-              </div>
-              
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className={`rounded-full ${
-                  isRecording 
-                    ? 'bg-red-100 text-red-600' 
-                    : 'bg-gray-100'
-                }`}
-                onClick={isRecording ? handleStopRecording : handleStartRecording}
-                disabled={isProcessing}
-              >
-                {isRecording ? (
-                  <MicOff className="h-6 w-6" />
-                ) : (
-                  <Mic className="h-6 w-6" />
-                )}
-              </Button>
+              {!isConnected ? (
+                <Button
+                  variant="default"
+                  size="lg"
+                  onClick={startCall}
+                  disabled={isConnected}
+                  className="rounded-full"
+                >
+                  <Mic className="h-6 w-6 mr-2" /> Start Conversation
+                </Button>
+              ) : (
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  onClick={endCall}
+                  className="rounded-full"
+                >
+                  <MicOff className="h-6 w-6 mr-2" /> End Conversation
+                </Button>
+              )}
             </div>
-
-            {/* Recording Status */}
-            {isRecording && (
-              <p className="text-sm text-red-600 mt-4 animate-pulse">
-                Recording... Click the mic button to stop
-              </p>
-            )}
           </div>
         </div>
       </main>
