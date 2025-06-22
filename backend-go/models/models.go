@@ -10,10 +10,24 @@ type Journal struct {
 }
 
 type GamePlan struct {
-	ID             int      `json:"id"`
-	Tasks          string `json:"tasks"`
-	Summary        string   `json:"summary"`
-	EmotionalState string   `json:"emotional_state"`
+	ID        int    `json:"id"`
+	Tasks     string `json:"tasks"`
+	Summary   string `json:"summary"`
+	CreatedAt string `json:"created_at"`
+}
+
+type JournalEntry struct {
+	ID             int    `json:"id"`
+	Content        string `json:"content"`
+	EmotionalState string `json:"emotional_state"`
+	CreatedAt      string `json:"created_at"`
+}
+
+type Transcript struct {
+	ID         int    `json:"id"`
+	SessionID  string `json:"session_id"`
+	Transcript string `json:"transcript"`
+	CreatedAt  string `json:"created_at"`
 }
 
 func StoreJournalEntry(content string) error {
@@ -62,7 +76,7 @@ func GetAllGamePlans() ([]GamePlan, error) {
 	var gamePlans []GamePlan
 	for rows.Next() {
 		var gamePlan GamePlan
-		if err := rows.Scan(&gamePlan.ID, &gamePlan.Tasks, &gamePlan.Summary, &gamePlan.EmotionalState); err != nil {
+		if err := rows.Scan(&gamePlan.ID, &gamePlan.Tasks, &gamePlan.Summary, &gamePlan.CreatedAt); err != nil {
 			return nil, err
 		}
 		gamePlans = append(gamePlans, gamePlan)

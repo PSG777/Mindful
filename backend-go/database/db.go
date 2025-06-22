@@ -13,10 +13,48 @@ func InitDB() {
     var err error
     DB, err = sql.Open("sqlite3", "./mindful.db")
     if err != nil {
-        log.Fatal(err)
+        log.Fatal("Failed to open database:", err)
     }
 
-    createTables()
+    // Create tables if they don't exist
+    journalTable := `
+    CREATE TABLE IF NOT EXISTS journal_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT,
+        emotional_state TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`
+
+    transcriptTable := `
+    CREATE TABLE IF NOT EXISTS transcripts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        transcript TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`
+
+    gamePlanTable := `
+    CREATE TABLE IF NOT EXISTS game_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tasks TEXT,
+        summary TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`
+
+    _, err = DB.Exec(journalTable)
+    if err != nil {
+        log.Fatalf("could not create journal table: %v", err)
+    }
+
+    _, err = DB.Exec(transcriptTable)
+    if err != nil {
+        log.Fatalf("could not create transcript table: %v", err)
+    }
+
+    _, err = DB.Exec(gamePlanTable)
+    if err != nil {
+        log.Fatalf("could not create game plan table: %v", err)
+    }
 }
 
 func createTables() {
@@ -24,7 +62,9 @@ func createTables() {
     CREATE TABLE IF NOT EXISTS transcripts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT NOT NULL,
-        transcript TEXT NOT NULL
+        transcript TEXT NOT NULL,
+        summary TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );`
 
     journalTable := `

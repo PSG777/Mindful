@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mindful/backend-go/models"
 	"strings"
 	"google.golang.org/genai"
 	"log"
 	"os"
+	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/option"
 )
 
 func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, summary string, err error) {
@@ -37,7 +40,7 @@ func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, 
         combinedData += journal + "\n"
     }
 
-    prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. 
+    prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user's current emotional state. 
     Respond in the following JSON format:
     {
       "tasks": [
@@ -128,4 +131,33 @@ func containsWord(summary string, words []string) bool {
 		}
 	}
 	return false
+}
+
+// AnalyzeEmotion analyzes the emotion of a given text content.
+func AnalyzeEmotion(content string) (string, error) {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return "", fmt.Errorf("GEMINI_API_KEY is not set")
+	}
+
+	client, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to create gemini client: %w", err)
+	}
+	defer client.Close()
+
+	model := client.GenerativeModel("gemini-pro")
+	prompt := fmt.Sprintf("Analyze the following journal entry and identify the primary emotion. Respond with only a single word (e.g., Happy, Sad, Anxious, Reflective, Grateful, etc.). Journal Entry: %s", content)
+	resp, err := model.GenerateContent(context.Background(), genai.Text(prompt))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+		if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
+			return string(part), nil
+		}
+	}
+
+	return "Neutral", nil
 }

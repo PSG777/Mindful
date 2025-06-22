@@ -26,6 +26,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE_URL = "https://mindful-wbz7.onrender.com";
 
+interface GamePlan {
+  summary: string;
+  tasks: string[];
+}
+
 export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -33,6 +38,8 @@ export default function Home() {
   const [status, setStatus] = useState("Ready to start your therapy session");
   const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [gamePlan, setGamePlan] = useState<GamePlan | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   const vapiRef = useRef<Vapi | null>(null);
   const saveTranscript = useRef<Array<{ speaker: string; text: string }>>([]);
@@ -42,6 +49,7 @@ export default function Home() {
     // Generate a unique session ID once when the component mounts
     sessionIdRef.current = uuidv4();
     console.log("New Session ID:", sessionIdRef.current);
+    fetchLatestGamePlan();
 
     const vapi = new Vapi("aae6435f-d8cc-4072-a2f2-24123cbc14ae");
     vapiRef.current = vapi;
@@ -78,6 +86,11 @@ export default function Home() {
             // Generate a new session ID for the next call
             sessionIdRef.current = uuidv4();
             console.log("Ready for next session. New ID:", sessionIdRef.current);
+            
+            // Automatically generate a new game plan
+            console.log("Triggering new game plan analysis...");
+            await generateNewGamePlan();
+
           } else {
             console.error('Failed to save transcript');
           }
@@ -99,47 +112,33 @@ export default function Home() {
     });
 
     vapi.on("message", (message: any) => {
-      if (message.type === "transcript" && message.transcript) {
-        setTranscript((prev) => {
-          const currentSpeaker = message.role === "user" ? "You" : "Therapist";
-
-          // Append to saveTranscript array
-          saveTranscript.current.push({
-            speaker: currentSpeaker,
-            text: message.transcript,
-          });
-
-          // If last message is same speaker, always replace it with the new transcript
-          if (
-            prev.length > 0 &&
-            prev[prev.length - 1].speaker === currentSpeaker
-          ) {
-            // Only update if the transcript changed
-            if (prev[prev.length - 1].text !== message.transcript) {
-              return [
-                ...prev.slice(0, -1),
-                {
-                  speaker: currentSpeaker,
-                  text: message.transcript,
-                },
-              ];
-            } else {
-              return prev;
-            }
-          }
-          // If last message is different speaker, add a new one
-          return [
-            ...prev,
-            {
-              speaker: currentSpeaker,
-              text: message.transcript,
-            },
-          ];
-        });
+      // Use a guard clause to handle non-transcript messages
+      if (message.type !== "transcript" || !message.transcript) {
+        if (message.type === "function-call") {
+          setIsResponding(true);
+          setStatus("Therapist is responding...");
+        }
+        return;
       }
-      if (message.type === "function-call") {
-        setIsResponding(true);
-        setStatus("Therapist is responding...");
+
+      const currentSpeaker = message.role === "user" ? "You" : "Therapist";
+      const newTranscriptPart = { speaker: currentSpeaker, text: message.transcript };
+
+      // Update the live display with both partial and final transcripts for a real-time effect.
+      setTranscript((prev) => {
+        const lastMessage = prev[prev.length - 1];
+        // If the last message is from the same speaker, replace it.
+        if (lastMessage && lastMessage.speaker === currentSpeaker) {
+          return [...prev.slice(0, -1), newTranscriptPart];
+        }
+        // Otherwise, add it as a new message.
+        return [...prev, newTranscriptPart];
+      });
+
+      // Only save the final transcript to the array that gets sent to the backend.
+      if (message.transcriptType === 'final') {
+        saveTranscript.current.push(newTranscriptPart);
+        console.log("Saved final transcript part:", newTranscriptPart);
       }
     });
 
@@ -154,6 +153,41 @@ export default function Home() {
       }
     };
   }, []);
+
+  const fetchLatestGamePlan = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/gameplans`);
+      if (response.ok) {
+        const plans: any[] = await response.json();
+        if (plans.length > 0) {
+          // Assuming the API returns plans sorted by date, get the latest one
+          const latestPlan = plans[0];
+          setGamePlan({
+            summary: latestPlan.summary,
+            tasks: latestPlan.tasks.split('\n'), // Assuming tasks are newline-separated
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching game plan:', error);
+    }
+  };
+
+  const generateNewGamePlan = async () => {
+    setIsGeneratingPlan(true);
+    try {
+      // This endpoint triggers the analysis and storage, it requires a POST request.
+      await fetch(`${API_BASE_URL}/gameplan/analyze`, {
+        method: 'POST',
+      });
+      // After triggering, fetch the new result
+      await fetchLatestGamePlan();
+    } catch (error) {
+      console.error('Error generating new game plan:', error);
+    } finally {
+      setIsGeneratingPlan(false);
+    }
+  };
 
   const startCall = async () => {
     try {
@@ -218,6 +252,39 @@ export default function Home() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart /> Latest Wellness Plan
+              </CardTitle>
+              <CardDescription>
+                Your AI-generated summary and suggested tasks, automatically updated after each session or journal entry.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isGeneratingPlan && !gamePlan ? (
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Generating your first wellness plan...</span>
+                  </div>
+              ) : gamePlan ? (
+                <div>
+                  <p className="text-gray-800 font-semibold mb-3">{gamePlan.summary}</p>
+                  <ul className="space-y-2">
+                    {gamePlan.tasks.map((task, index) => (
+                      <li key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
+                        <input type="checkbox" id={`task-${index}`} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                        <label htmlFor={`task-${index}`} className="text-sm text-gray-700">{task}</label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-gray-600">No wellness plan generated yet. Record a session or write a journal entry to get started.</p>
+              )}
+            </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -250,78 +317,115 @@ export default function Home() {
             <CardDescription>Your scheduled activities</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">Nothing scheduled for today.</p>
+            <p className="text-gray-600">No scheduled activities.</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Vapi AI Assistant Section */}
-      <div className="rounded-xl border bg-white p-8 mb-8">
-        <div className="flex flex-col items-center text-center">
-          <p className={`text-sm mb-4 ${getStatusColor()}`}>{status}</p>
-          <div className={`w-32 h-32 rounded-full mb-6 flex items-center justify-center ${
-            isListening
-              ? "bg-blue-400 animate-pulse"
-              : isResponding
-              ? "bg-green-400 animate-pulse"
-              : isConnected
-              ? "bg-green-200"
-              : error
-              ? "bg-red-200"
-              : "bg-gray-200"
-          }`}>
-            {isListening ? (
-              <Mic className="h-16 w-16 text-white" />
-            ) : isResponding ? (
-              <MessageCircle className="h-16 w-16 text-white" />
-            ) : isConnected ? (
-              <Mic className="h-16 w-16 text-green-700" />
-            ) : error ? (
-              <X className="h-16 w-16 text-red-600" />
-            ) : (
-              <MicOff className="h-16 w-16 text-gray-400" />
-            )}
-          </div>
-
-          {/* Transcript Display */}
-          <div className="mb-4 max-w-md w-full">
-            {transcript.map((msg, idx) => (
-              <div key={idx} className={`mb-2 text-left ${msg.speaker === "You" ? "text-blue-700" : "text-green-700"}`}>
-                <span className="font-semibold mr-2">{msg.speaker}:</span>
-                <span>{msg.text}</span>
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Volume2 /> Voice Therapy Session
+          </CardTitle>
+          <CardDescription className={getStatusColor()}>
+            {status}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!isConnected ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-6 text-center">
+              <h2 className="text-2xl font-medium text-gray-700">Want to talk for a bit?</h2>
+              <Button
+                onClick={startCall}
+                className="w-24 h-24 rounded-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                aria-label="Start voice session"
+              >
+                <Mic className="h-12 w-12" />
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div
+                className="h-64 overflow-y-auto p-4 border rounded-md bg-gray-50 mb-4"
+                id="transcript-container"
+              >
+                {transcript.length > 0 ? (
+                  transcript.map((msg, index) => (
+                    <p key={index} className="mb-2">
+                      <span
+                        className={
+                          msg.speaker === "You"
+                            ? "font-semibold text-blue-600"
+                            : "font-semibold text-gray-800"
+                        }
+                      >
+                        {msg.speaker}:
+                      </span>{" "}
+                      {msg.text}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-gray-500">
+                    Your conversation will appear here...
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
-
-          {/* Error Display */}
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 rounded-lg max-w-md">
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="flex items-center justify-center gap-4">
+                <Button
+                  onClick={endCall}
+                  disabled={!isConnected}
+                  variant="destructive"
+                >
+                  <MicOff className="mr-2 h-4 w-4" /> End Session
+                </Button>
+              </div>
             </div>
           )}
+          {error && <p className="text-red-600 text-center mt-4">{error}</p>}
+        </CardContent>
+      </Card>
 
-          <div className="flex items-center gap-4 mt-8">
-            {!isConnected ? (
-              <Button
-                variant="default"
-                size="lg"
-                onClick={startCall}
-                disabled={isConnected}
-                className="rounded-full"
-              >
-                <Mic className="h-6 w-6 mr-2" /> Start Conversation
-              </Button>
-            ) : (
-              <Button
-                variant="destructive"
-                size="lg"
-                onClick={endCall}
-                className="rounded-full"
-              >
-                <MicOff className="h-6 w-6 mr-2" /> End Conversation
-              </Button>
-            )}
-          </div>
+      <div className="mt-8 text-center">
+        <h2 className="text-2xl font-bold mb-4">Explore Mindful</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Link href="/journal">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Book /> Journal
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Reflect on your thoughts and track your journey.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/mood-tracker">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smile /> Mood Tracker
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Log your mood to understand your emotional patterns.</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/resources">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle /> Resources
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>Access articles and tools to support your mental health.</p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>
