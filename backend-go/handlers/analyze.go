@@ -44,8 +44,11 @@ func AnalyzeAndStoreGamePlanHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // Categorize emotional state
+    emotionalState := utils.CategorizeEmotionalState(summary)
+
     // Store the game plan in the database
-    err = models.StoreGamePlan(tasks, summary)
+    err = models.StoreGamePlan(tasks, summary, emotionalState)
     if err != nil {
         http.Error(w, "Failed to store game plan", http.StatusInternalServerError)
         return

@@ -37,7 +37,8 @@ func createTables() {
     CREATE TABLE IF NOT EXISTS game_plans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tasks TEXT NOT NULL,
-        summary TEXT NOT NULL
+        summary TEXT NOT NULL,
+        emotional_state TEXT NOT NULL
     );`
 
     _, err := DB.Exec(transcriptTable)

@@ -5,10 +5,12 @@ import (
     "net/http"
     "mindful/backend-go/database"
     "mindful/backend-go/handlers"
+    "mindful/backend-go/models"
 )
 
 func main() {
     database.InitDB()
+    models.InitDatabase(database.DB)
 
     http.HandleFunc("/transcripts/add", handlers.AddTranscriptHandler)
     http.HandleFunc("/transcripts", handlers.GetTranscriptsHandler)
