@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import Vapi from "@vapi-ai/web";
 
+const API_BASE_URL = "https://mindful-wbz7.onrender.com";
+
 export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -30,8 +32,13 @@ export default function Home() {
   const [status, setStatus] = useState("Ready to start your therapy session");
   const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
 
   const vapiRef = useRef<Vapi | null>(null);
+
+  useEffect(() => {
+    setSessionId(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  }, []);
 
   useEffect(() => {
     // Initialize Vapi with your public key
@@ -44,11 +51,36 @@ export default function Home() {
       setError(null);
     });
 
-    vapi.on("call-end", () => {
+    vapi.on("call-end", async () => {
       setIsConnected(false);
       setIsListening(false);
       setIsResponding(false);
       setStatus("Session ended - Thank you for sharing");
+      
+      // Send transcript to backend when call ends
+      if (transcript.length > 0) {
+        try {
+          const fullTranscript = transcript.map(msg => `${msg.speaker}: ${msg.text}`).join('\n');
+          const response = await fetch(`${API_BASE_URL}/transcripts/add`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: sessionId,
+              transcript: fullTranscript,
+            }),
+          });
+          
+          if (response.ok) {
+            console.log('Transcript saved successfully.');
+          } else {
+            console.error('Failed to save transcript');
+          }
+        } catch (error) {
+          console.error('Error saving transcript:', error);
+        }
+      }
     });
 
     vapi.on("speech-start", () => {
