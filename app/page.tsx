@@ -168,118 +168,119 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50/90 p-4 sm:p-8">
-      <main className="flex-1">
-        <h1 className="text-3xl font-bold mb-8">Home</h1>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Home</h1>
+        <p className="text-gray-600">Your mental health dashboard</p>
+      </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Smile /> Today's Mood
-              </CardTitle>
-              <CardDescription>Awaiting your check-in</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">You haven't checked in yet.</p>
-            </CardContent>
-          </Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Smile /> Today's Mood
+            </CardTitle>
+            <CardDescription>Awaiting your check-in</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">You haven't checked in yet.</p>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Book /> Recent Journal Entries
-              </CardTitle>
-              <CardDescription>Your latest thoughts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">No recent entries.</p>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Book /> Recent Journal Entries
+            </CardTitle>
+            <CardDescription>Your latest thoughts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">No recent entries.</p>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart /> Upcoming Self-Care
-              </CardTitle>
-              <CardDescription>Your scheduled activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">Nothing scheduled for today.</p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Heart /> Upcoming Self-Care
+            </CardTitle>
+            <CardDescription>Your scheduled activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">Nothing scheduled for today.</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Vapi AI Assistant Section */}
-        <div className="rounded-xl border bg-white p-8 mb-8">
-          <div className="flex flex-col items-center text-center">
-            <p className={`text-sm mb-4 ${getStatusColor()}`}>{status}</p>
-            <div className={`w-32 h-32 rounded-full mb-6 flex items-center justify-center ${
-              isListening
-                ? "bg-blue-400 animate-pulse"
-                : isResponding
-                ? "bg-green-400 animate-pulse"
-                : isConnected
-                ? "bg-green-200"
-                : error
-                ? "bg-red-200"
-                : "bg-gray-200"
-            }`}>
-              {isListening ? (
-                <Mic className="h-16 w-16 text-white" />
-              ) : isResponding ? (
-                <MessageCircle className="h-16 w-16 text-white" />
-              ) : isConnected ? (
-                <Mic className="h-16 w-16 text-green-700" />
-              ) : error ? (
-                <X className="h-16 w-16 text-red-600" />
-              ) : (
-                <MicOff className="h-16 w-16 text-gray-400" />
-              )}
-            </div>
-
-            {/* Transcript Display */}
-            <div className="mb-4 max-w-md w-full">
-              {transcript.map((msg, idx) => (
-                <div key={idx} className={`mb-2 text-left ${msg.speaker === "You" ? "text-blue-700" : "text-green-700"}`}>
-                  <span className="font-semibold mr-2">{msg.speaker}:</span>
-                  <span>{msg.text}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Error Display */}
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 rounded-lg max-w-md">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
+      {/* Vapi AI Assistant Section */}
+      <div className="rounded-xl border bg-white p-8 mb-8">
+        <div className="flex flex-col items-center text-center">
+          <p className={`text-sm mb-4 ${getStatusColor()}`}>{status}</p>
+          <div className={`w-32 h-32 rounded-full mb-6 flex items-center justify-center ${
+            isListening
+              ? "bg-blue-400 animate-pulse"
+              : isResponding
+              ? "bg-green-400 animate-pulse"
+              : isConnected
+              ? "bg-green-200"
+              : error
+              ? "bg-red-200"
+              : "bg-gray-200"
+          }`}>
+            {isListening ? (
+              <Mic className="h-16 w-16 text-white" />
+            ) : isResponding ? (
+              <MessageCircle className="h-16 w-16 text-white" />
+            ) : isConnected ? (
+              <Mic className="h-16 w-16 text-green-700" />
+            ) : error ? (
+              <X className="h-16 w-16 text-red-600" />
+            ) : (
+              <MicOff className="h-16 w-16 text-gray-400" />
             )}
+          </div>
 
-            <div className="flex items-center gap-4 mt-8">
-              {!isConnected ? (
-                <Button
-                  variant="default"
-                  size="lg"
-                  onClick={startCall}
-                  disabled={isConnected}
-                  className="rounded-full"
-                >
-                  <Mic className="h-6 w-6 mr-2" /> Start Conversation
-                </Button>
-              ) : (
-                <Button
-                  variant="destructive"
-                  size="lg"
-                  onClick={endCall}
-                  className="rounded-full"
-                >
-                  <MicOff className="h-6 w-6 mr-2" /> End Conversation
-                </Button>
-              )}
+          {/* Transcript Display */}
+          <div className="mb-4 max-w-md w-full">
+            {transcript.map((msg, idx) => (
+              <div key={idx} className={`mb-2 text-left ${msg.speaker === "You" ? "text-blue-700" : "text-green-700"}`}>
+                <span className="font-semibold mr-2">{msg.speaker}:</span>
+                <span>{msg.text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 rounded-lg max-w-md">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
+          )}
+
+          <div className="flex items-center gap-4 mt-8">
+            {!isConnected ? (
+              <Button
+                variant="default"
+                size="lg"
+                onClick={startCall}
+                disabled={isConnected}
+                className="rounded-full"
+              >
+                <Mic className="h-6 w-6 mr-2" /> Start Conversation
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                size="lg"
+                onClick={endCall}
+                className="rounded-full"
+              >
+                <MicOff className="h-6 w-6 mr-2" /> End Conversation
+              </Button>
+            )}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

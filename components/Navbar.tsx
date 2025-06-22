@@ -21,13 +21,13 @@ export default function Navbar() {
 
   return (
     <nav className="w-full border-b bg-white dark:bg-gray-950 shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-16 relative">
+      <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
         {/* Logo/Title */}
-        <div className="flex items-center gap-4 min-w-[120px]">
+        <div className="flex items-center">
           <span className="font-bold text-lg tracking-tight">Mindful</span>
         </div>
         {/* Centered Tabs */}
-        <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-1">
+        <div className="hidden md:flex items-center gap-1">
           {tabs.map((tab) => (
             <Link key={tab.name} href={tab.href}>
               <Button
@@ -43,7 +43,7 @@ export default function Navbar() {
             </Link>
           ))}
         </div>
-        {/* Hamburger Menu */}
+        {/* Spacer for mobile menu */}
         <div className="md:hidden flex items-center">
           <Button
             variant="ghost"

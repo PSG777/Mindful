@@ -63,72 +63,73 @@ export default function JournalPage() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50/90 p-4 sm:p-8">
-      <main className="flex-1">
-        <h1 className="text-3xl font-bold mb-8">📓 Journal</h1>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">📓 Journal</h1>
+        <p className="text-gray-600">Record your thoughts and feelings</p>
+      </div>
 
-        <div className="grid gap-8 md:grid-cols-2">
-          {/* New Entry Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>New Entry</CardTitle>
-              <CardDescription>
-                Let out your thoughts and feelings.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                placeholder="What's on your mind?"
-                value={newEntry}
-                onChange={(e) => setNewEntry(e.target.value)}
-                className="min-h-[200px] mb-4"
+      <div className="grid gap-8 md:grid-cols-2">
+        {/* New Entry Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>New Entry</CardTitle>
+            <CardDescription>
+              Let out your thoughts and feelings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="What's on your mind?"
+              value={newEntry}
+              onChange={(e) => setNewEntry(e.target.value)}
+              className="min-h-[200px] mb-4"
+            />
+            <div className="flex items-center justify-between">
+              <Button
+                onClick={handleToggleRecording}
+                variant={isRecording ? "destructive" : "outline"}
+              >
+                <Mic className="mr-2 h-4 w-4" />
+                {isRecording ? "Stop Recording" : "Voice Journal"}
+              </Button>
+              <Button onClick={handleSubmit}>Submit Entry</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* History Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>History</CardTitle>
+            <CardDescription>Review your past entries.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative mb-4">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <Input
+                placeholder="Search entries..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
               />
-              <div className="flex items-center justify-between">
-                <Button
-                  onClick={handleToggleRecording}
-                  variant={isRecording ? "destructive" : "outline"}
-                >
-                  <Mic className="mr-2 h-4 w-4" />
-                  {isRecording ? "Stop Recording" : "Voice Journal"}
-                </Button>
-                <Button onClick={handleSubmit}>Submit Entry</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* History Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>History</CardTitle>
-              <CardDescription>Review your past entries.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="relative mb-4">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  placeholder="Search entries..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-                {filteredEntries.map((entry) => (
-                  <div key={entry.id} className="p-4 border rounded-lg">
-                    <p className="font-semibold">{entry.date}</p>
-                    <p className="text-sm text-gray-700">{entry.content}</p>
-                    <div className="mt-2">
-                      <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                        Mood: {entry.mood}
-                      </span>
-                    </div>
+            </div>
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+              {filteredEntries.map((entry) => (
+                <div key={entry.id} className="p-4 border rounded-lg">
+                  <p className="font-semibold">{entry.date}</p>
+                  <p className="text-sm text-gray-700">{entry.content}</p>
+                  <div className="mt-2">
+                    <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                      Mood: {entry.mood}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 } 

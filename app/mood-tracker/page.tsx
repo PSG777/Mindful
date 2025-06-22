@@ -85,8 +85,11 @@ export default function MoodTrackerPage() {
   }
 
   return (
-    <div className="flex-1 space-y-8 p-4 sm:p-8">
-      <h1 className="text-3xl font-bold">📊 Mood Tracker</h1>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">📊 Mood Tracker</h1>
+        <p className="text-gray-600">Track and visualize your emotional patterns</p>
+      </div>
 
       <div className="grid gap-8 md:grid-cols-2">
         {/* Mood Input */}
