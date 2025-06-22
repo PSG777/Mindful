@@ -27,7 +27,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-16 relative">
         {/* Logo/Title */}
         <div className="flex items-center gap-4 min-w-[120px]">
-          <span className="font-bold text-lg tracking-tight">MentalHealth</span>
+          <span className="font-bold text-lg tracking-tight">Mindful</span>
         </div>
         {/* Centered Tabs */}
         <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-2">
