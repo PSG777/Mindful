@@ -4,104 +4,114 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"mindful/backend-go/models"
-	"strings"
-	"google.golang.org/genai"
 	"log"
+	"mindful/backend-go/models"
 	"os"
+	"strings"
+
+	"google.golang.org/genai"
 )
 
 func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, summary string, err error) {
-    log.Println("Initializing Gemini API client...")
-    ctx := context.Background()
+	log.Println("Initializing Gemini API client...")
+	ctx := context.Background()
 	apiKey := os.Getenv("GEMINI_API_KEY")
-    if apiKey == "" {
-        log.Println("Error: GEMINI_API_KEY is not set")
-        return nil, "", errors.New("API key is not set")
-    }
-    client, err := genai.NewClient(ctx, &genai.ClientConfig{
-        APIKey:   apiKey, 
-        Backend: genai.BackendGeminiAPI,
-    })
-    if err != nil {
-        log.Printf("Error initializing Gemini API client: %v", err)
-        return nil, "", errors.New("failed to initialize Gemini API client")
-    }
+	if apiKey == "" {
+		log.Println("Error: GEMINI_API_KEY is not set")
+		return nil, "", errors.New("API key is not set")
+	}
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
+	if err != nil {
+		log.Printf("Error initializing Gemini API client: %v", err)
+		return nil, "", errors.New("failed to initialize Gemini API client")
+	}
 
-    log.Println("Combining transcripts and journals into a single prompt...")
-    var combinedData string
-    for _, transcript := range transcripts {
-        combinedData += transcript + "\n"
-    }
-    for _, journal := range journals {
-        combinedData += journal + "\n"
-    }
+	log.Println("Combining transcripts and journals into a single prompt...")
+	var combinedData string
+	for _, transcript := range transcripts {
+		combinedData += transcript + "\n"
+	}
+	for _, journal := range journals {
+		combinedData += journal + "\n"
+	}
 
-    prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. 
+	prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. Define the title, time and how long it takes. Time should be in given format defined. Always between 5-10 days after June 22, 2025. 
     Respond in the following JSON format:
     {
       "tasks": [
         "Task 1",
+            "title": "Task 1",
+            "time": "2025-23-06T10:00:00Z",
+            "length": "20",
         "Task 2",
+            "title": "Task 2",
+            "time": "2025-24-06T10:00:00Z",
+            "length": "30",
         "Task 3"
+            "title": "Task 2",
+            "time": "2025-29-06T10:00:00Z",
+            "length": "10",
       ],
       "summary": "Summary of the user's emotional state"
     }
     ` + combinedData
 
-    log.Println("Sending request to Gemini API...")
-    result, err := client.Models.GenerateContent(
-        ctx,
-        "gemini-2.5-flash",
-        genai.Text(prompt),
-        &genai.GenerateContentConfig{
-            ThinkingConfig: &genai.ThinkingConfig{
-                ThinkingBudget: func(i int32) *int32 { return &i }(0), // Pass a pointer to int32
-            },
-        },
-    )
-    if err != nil {
-        log.Printf("Error generating content using Gemini API: %v", err)
-        return nil, "", errors.New("failed to generate content using Gemini API")
-    }
+	log.Println("Sending request to Gemini API...")
+	result, err := client.Models.GenerateContent(
+		ctx,
+		"gemini-2.5-flash",
+		genai.Text(prompt),
+		&genai.GenerateContentConfig{
+			ThinkingConfig: &genai.ThinkingConfig{
+				ThinkingBudget: func(i int32) *int32 { return &i }(0), // Pass a pointer to int32
+			},
+		},
+	)
+	if err != nil {
+		log.Printf("Error generating content using Gemini API: %v", err)
+		return nil, "", errors.New("failed to generate content using Gemini API")
+	}
 
-    // Log the raw response
-    log.Printf("Raw response from Gemini API: %s", result.Text())
+	// Log the raw response
+	log.Printf("Raw response from Gemini API: %s", result.Text())
 
-    // Extract the actual JSON content from the response
-    rawResponse := result.Text()
-    rawResponse = strings.TrimPrefix(rawResponse, "```json\n")
-    rawResponse = strings.TrimSuffix(rawResponse, "\n```")
+	// Extract the actual JSON content from the response
+	rawResponse := result.Text()
+	rawResponse = strings.TrimPrefix(rawResponse, "```json\n")
+	rawResponse = strings.TrimSuffix(rawResponse, "\n```")
 
-    log.Println("Parsing the response...")
-    var gamePlanResp struct {
-        Tasks   []string `json:"tasks"`
-        Summary string   `json:"summary"`
-    }
-    if err := json.Unmarshal([]byte(rawResponse), &gamePlanResp); err != nil {
-        log.Printf("Error parsing Gemini API response: %v", err)
-        return nil, "", errors.New("failed to parse Gemini API response")
-    }
+	log.Println("Parsing the response...")
+	var gamePlanResp struct {
+		Tasks   []string `json:"tasks"`
+		Summary string   `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(rawResponse), &gamePlanResp); err != nil {
+		log.Printf("Error parsing Gemini API response: %v", err)
+		return nil, "", errors.New("failed to parse Gemini API response")
+	}
 
-    // Log parsed tasks and summary
-    log.Printf("Parsed tasks: %v", gamePlanResp.Tasks)
-    log.Printf("Parsed summary: %s", gamePlanResp.Summary)
+	// Log parsed tasks and summary
+	log.Printf("Parsed tasks: %v", gamePlanResp.Tasks)
+	log.Printf("Parsed summary: %s", gamePlanResp.Summary)
 
-    tasks = gamePlanResp.Tasks
-    summary = gamePlanResp.Summary
+	tasks = gamePlanResp.Tasks
+	summary = gamePlanResp.Summary
 
-    log.Println("Categorizing emotional state...")
-    emotionalState := CategorizeEmotionalState(summary)
+	log.Println("Categorizing emotional state...")
+	emotionalState := CategorizeEmotionalState(summary)
 
-    log.Println("Storing the game plan in the database...")
-    err = models.StoreGamePlan(tasks, summary, emotionalState)
-    if err != nil {
-        log.Printf("Error storing game plan in the database: %v", err)
-        return nil, "", errors.New("failed to store game plan in the database")
-    }
+	log.Println("Storing the game plan in the database...")
+	err = models.StoreGamePlan(tasks, summary, emotionalState)
+	if err != nil {
+		log.Printf("Error storing game plan in the database: %v", err)
+		return nil, "", errors.New("failed to store game plan in the database")
+	}
 
-    log.Println("Game plan generated successfully.")
-    return tasks, summary, nil
+	log.Println("Game plan generated successfully.")
+	return tasks, summary, nil
 }
 
 // Categorize emotional state into predefined categories
