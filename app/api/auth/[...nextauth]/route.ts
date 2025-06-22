@@ -21,17 +21,43 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, account }: { token: JWT; account?: any }) {
-      // Persist the OAuth tokens right after sign-in
+    async jwt({ token, account }) {
+      // On first sign-in, persist both tokens from Google:
       if (account) {
-        token.accessToken = account.access_token;
+        token.accessToken  = account.access_token;
         token.refreshToken = account.refresh_token;
+        token.expiresAt    = (account.expires_at ?? 0) * 1000;  // ms
       }
+
+      // If the access token is expired, use the refresh token to fetch a new one:
+      const now = Date.now();
+      if (token.expiresAt && now > token.expiresAt - 60_000) {
+        try {
+          const url =
+            "https://oauth2.googleapis.com/token" +
+            `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
+            `&client_secret=${process.env.GOOGLE_CLIENT_SECRET}` +
+            `&grant_type=refresh_token` +
+            `&refresh_token=${token.refreshToken}`;
+
+          const res = await fetch(url, { method: "POST" });
+          const refreshed = await res.json();
+
+          token.accessToken  = refreshed.access_token;
+          token.expiresAt    = Date.now() + refreshed.expires_in * 1000;
+          // keep the same refreshToken
+        } catch (err) {
+          console.error("Error refreshing Google access token", err);
+        }
+      }
+
       return token;
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
-      // Make the access token available in the client session
-      session.accessToken = token.accessToken as string;
+
+    async session({ session, token }) {
+      // Make both tokens available client-side if you need them:
+      session.accessToken  = token.accessToken as string;
+      session.refreshToken = token.refreshToken as string;
       return session;
     },
   },
