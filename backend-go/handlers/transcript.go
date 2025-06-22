@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"mindful/backend-go/database"
 	"mindful/backend-go/models"
 	"net/http"
@@ -38,19 +39,25 @@ func AddTranscriptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("GetTranscriptsHandler received request for path: %s", r.URL.Path)
+
 	if r.Method != http.MethodGet {
+		log.Printf("Invalid method for path %s: %s", r.URL.Path, r.Method)
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Check if this is a request for a specific transcript
 	path := strings.TrimPrefix(r.URL.Path, "/transcripts/")
+	log.Printf("Trimmed path is: '%s'", path)
+
 	if path != "" && path != "transcripts" {
-		// This is a request for a specific transcript by session_id
+		log.Printf("Dispatching to GetTranscriptBySessionIDHandler with sessionID: %s", path)
 		GetTranscriptBySessionIDHandler(w, r, path)
 		return
 	}
 
+	log.Println("Proceeding to fetch all transcripts.")
 	rows, err := database.DB.Query(`SELECT id, session_id, transcript, created_at FROM transcripts ORDER BY created_at DESC`)
 	if err != nil {
 		http.Error(w, "Failed to retrieve transcripts", http.StatusInternalServerError)
