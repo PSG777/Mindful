@@ -40,9 +40,9 @@ func main() {
 
     mux := http.NewServeMux()
     mux.HandleFunc("/transcripts/add", handlers.AddTranscriptHandler)
-    mux.HandleFunc("/transcripts", handlers.GetTranscriptsHandler)
+    mux.HandleFunc("/transcripts/", handlers.GetTranscriptsHandler)
     mux.HandleFunc("/journals/add", handlers.AddJournalEntryHandler)
-    mux.HandleFunc("/journals", handlers.GetJournalEntriesHandler)
+    mux.HandleFunc("/journals/", handlers.GetJournalEntriesHandler)
     mux.HandleFunc("/gameplan/analyze", handlers.AnalyzeAndStoreGamePlanHandler)
     mux.HandleFunc("/gameplans", handlers.GetGamePlansHandler) // New endpoint
 
