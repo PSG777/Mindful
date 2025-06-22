@@ -40,8 +40,7 @@ export default function ResourcesPage() {
       url: 'https://988lifeline.org/',
       phone: '988',
       isHotline: true,
-      icon: Phone,
-      featured: true
+      icon: Phone
     },
     {
       id: 2,
@@ -52,8 +51,7 @@ export default function ResourcesPage() {
       url: 'https://www.crisistextline.org/',
       phone: '741741',
       isHotline: true,
-      icon: Phone,
-      featured: true
+      icon: Phone
     },
     {
       id: 3,
@@ -213,8 +211,6 @@ export default function ResourcesPage() {
     return matchesCategory && matchesSearch;
   });
 
-  const featuredResources = resources.filter(r => r.featured);
-
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-8">
@@ -243,45 +239,10 @@ export default function ResourcesPage() {
         </CardContent>
       </Card>
 
-      {/* Featured Resources */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Featured Resources</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {featuredResources.map((resource) => (
-            <Card key={resource.id} className="border-2 border-blue-200 bg-blue-50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-800">
-                  <resource.icon className="h-5 w-5" />
-                  {resource.title}
-                </CardTitle>
-                <CardDescription className="text-blue-700">
-                  {resource.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-blue-600">
-                    {resource.isHotline && <span className="font-medium">Call: {resource.phone}</span>}
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => window.open(resource.url, '_blank')}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Visit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
       {/* Search and Filter */}
       <div className="mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
+        <div className="space-y-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
