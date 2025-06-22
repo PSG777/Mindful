@@ -5,10 +5,18 @@ import (
     "net/http"
     "mindful/backend-go/database"
     "mindful/backend-go/handlers"
+    "mindful/backend-go/models"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+
+	err := godotenv.Load(".env")
+    if err != nil {
+        log.Fatal("Error loading .env file")
+    }
     database.InitDB()
+    models.InitDatabase(database.DB)
 
     http.HandleFunc("/transcripts/add", handlers.AddTranscriptHandler)
     http.HandleFunc("/transcripts", handlers.GetTranscriptsHandler)

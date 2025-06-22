@@ -33,14 +33,14 @@ func GetAllJournalEntries() ([]Journal, error) {
 	return journals, nil
 }
 
-func StoreGamePlan(tasks []string, summary string) error {
+func StoreGamePlan(tasks []string, summary string, emotionalState string) error {
 	// Convert tasks slice to a single string
 	tasksText := ""
 	for _, task := range tasks {
 		tasksText += task + "\n"
 	}
 
-	query := `INSERT INTO game_plans (tasks, summary) VALUES (?, ?)`
-	_, err := database.DB.Exec(query, tasksText, summary)
+	query := `INSERT INTO game_plans (tasks, summary, emotional_state) VALUES (?, ?, ?)`
+	_, err := database.DB.Exec(query, tasksText, summary, emotionalState)
 	return err
 }
