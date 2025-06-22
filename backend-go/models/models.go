@@ -9,6 +9,13 @@ type Journal struct {
 	Content string `json:"content"`
 }
 
+type GamePlan struct {
+	ID             int      `json:"id"`
+	Tasks          string `json:"tasks"`
+	Summary        string   `json:"summary"`
+	EmotionalState string   `json:"emotional_state"`
+}
+
 func StoreJournalEntry(content string) error {
 	query := `INSERT INTO journals (content) VALUES (?)`
 	_, err := database.DB.Exec(query, content)
@@ -43,4 +50,22 @@ func StoreGamePlan(tasks []string, summary string, emotionalState string) error 
 	query := `INSERT INTO game_plans (tasks, summary, emotional_state) VALUES (?, ?, ?)`
 	_, err := database.DB.Exec(query, tasksText, summary, emotionalState)
 	return err
+}
+
+func GetAllGamePlans() ([]GamePlan, error) {
+	rows, err := database.DB.Query(`SELECT id, tasks, summary, emotional_state FROM game_plans`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var gamePlans []GamePlan
+	for rows.Next() {
+		var gamePlan GamePlan
+		if err := rows.Scan(&gamePlan.ID, &gamePlan.Tasks, &gamePlan.Summary, &gamePlan.EmotionalState); err != nil {
+			return nil, err
+		}
+		gamePlans = append(gamePlans, gamePlan)
+	}
+	return gamePlans, nil
 }

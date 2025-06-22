@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"mindful/backend-go/models"
-	"net/http"
 	"mindful/backend-go/utils"
+	"net/http"
 )
 
 type GameplanResponse struct {
@@ -50,4 +50,25 @@ func GenerateGameplanHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func GetGamePlansHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	gamePlans, err := models.GetAllGamePlans()
+	if err != nil {
+		http.Error(w, "Failed to retrieve game plans", http.StatusInternalServerError)
+		return
+	}
+
+	if len(gamePlans) == 0 {
+		http.Error(w, "No game plans available", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(gamePlans)
 }
