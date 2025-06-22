@@ -74,6 +74,50 @@ export default function MoodTrackerPage() {
     sad: true,
     fearful: true,
   })
+  type MoodKey = 'nervous' | 'angry' | 'sad' | 'fearful';
+  const [moodDataState, setMoodDataState] = useState<typeof moodData>(moodData);
+
+  const handleSubmitMood = () => {
+    if (!selectedMood) return;
+    // Map mood label to key
+    const moodLabelToKey: Record<string, MoodKey> = {
+      Nervous: 'nervous',
+      Angry: 'angry',
+      Sad: 'sad',
+      Fearful: 'fearful',
+    };
+    const moodKey = moodLabelToKey[selectedMood];
+    if (!moodKey) return;
+    // Find today's date and day
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    const dayStr = today.toLocaleDateString('en-US', { weekday: 'short' });
+    // Check if today's entry exists
+    const existingIdx = moodDataState.findIndex((d) => d.date === dateStr);
+    if (existingIdx !== -1) {
+      // Update the mood value for today
+      setMoodDataState((prev) => prev.map((entry, idx) =>
+        idx === existingIdx
+          ? { ...entry, [moodKey]: (entry[moodKey] as number) + 1 }
+          : entry
+      ));
+    } else {
+      // Add a new entry for today
+      setMoodDataState((prev) => [
+        ...prev,
+        {
+          date: dateStr,
+          day: dayStr,
+          nervous: 0,
+          angry: 0,
+          sad: 0,
+          fearful: 0,
+          [moodKey]: 1,
+        },
+      ]);
+    }
+    setSelectedMood(null);
+  }
 
   const handleLegendClick = (dataKey: string) => {
     if (dataKey) {
@@ -115,7 +159,7 @@ export default function MoodTrackerPage() {
                 </button>
               ))}
             </div>
-            <Button disabled={!selectedMood}>Submit Mood</Button>
+            <Button disabled={!selectedMood} onClick={handleSubmitMood}>Submit Mood</Button>
           </CardContent>
         </Card>
 
@@ -129,7 +173,7 @@ export default function MoodTrackerPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={moodData}>
+              <LineChart data={moodDataState}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
                 <YAxis />
@@ -199,4 +243,4 @@ export default function MoodTrackerPage() {
       </div>
     </div>
   )
-} 
+}
