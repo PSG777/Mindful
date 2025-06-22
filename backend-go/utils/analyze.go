@@ -8,13 +8,19 @@ import (
 	"strings"
 	"google.golang.org/genai"
 	"log"
+	"os"
 )
 
 func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, summary string, err error) {
     log.Println("Initializing Gemini API client...")
     ctx := context.Background()
+	apiKey := os.Getenv("GEMINI_API_KEY")
+    if apiKey == "" {
+        log.Println("Error: GEMINI_API_KEY is not set")
+        return nil, "", errors.New("API key is not set")
+    }
     client, err := genai.NewClient(ctx, &genai.ClientConfig{
-        APIKey:  "AIzaSyD7u5x1ocINoaQeJx4HjpvMCLxI5cgHWuk", //  APIHardcoded key
+        APIKey:   apiKey, 
         Backend: genai.BackendGeminiAPI,
     })
     if err != nil {
