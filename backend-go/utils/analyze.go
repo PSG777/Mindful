@@ -33,8 +33,17 @@ func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, 
 		combinedData += journal + "\n"
 	}
 
-	prompt := "You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state.\n" + combinedData
-
+	prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. 
+	Respond in the following JSON format:
+	{
+	  "tasks": [
+		"Task 1",
+		"Task 2",
+		"Task 3"
+	  ],
+	  "summary": "Summary of the user's emotional state"
+	}
+	` + combinedData
 	// Create the OpenAI request payload
 	requestPayload := OpenAIRequest{
 		Model:       "gpt-4",

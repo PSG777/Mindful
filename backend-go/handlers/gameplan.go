@@ -28,7 +28,7 @@ func GenerateGameplanHandler(w http.ResponseWriter, r *http.Request) {
 		combinedData += transcript.Transcript + "\n"
 	}
 
-	journalEntries, err := models.GetJournalEntries()
+	journalEntries, err := models.GetAllJournalEntries()
 	if err != nil {
 		http.Error(w, "Error fetching journal entries", http.StatusInternalServerError)
 		return

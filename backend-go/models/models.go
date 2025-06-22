@@ -1,32 +1,46 @@
 package models
 
-import "errors"
+import (
+	"mindful/backend-go/database"
+)
 
-type JournalEntry struct {
-    ID      string `json:"id"`
-    Content string `json:"content"`
+type Journal struct {
+	ID      int    `json:"id"`
+	Content string `json:"content"`
 }
-
-type Transcript struct {
-    SessionID  string `json:"session_id"`
-    Transcript string `json:"transcript"`
-}
-
-var Transcripts []Transcript
-
-var JournalEntries []JournalEntry
 
 func StoreJournalEntry(content string) error {
-	if content == "" {
-		return errors.New("content cannot be empty")
-	}
-	JournalEntries = append(JournalEntries, JournalEntry{Content: content})
-	return nil
+	query := `INSERT INTO journals (content) VALUES (?)`
+	_, err := database.DB.Exec(query, content)
+	return err
 }
 
-func GetJournalEntries() ([]JournalEntry, error) {
-	if len(JournalEntries) == 0 {
-		return nil, errors.New("no journal entries available")
+func GetAllJournalEntries() ([]Journal, error) {
+	rows, err := database.DB.Query(`SELECT id, content FROM journals`)
+	if err != nil {
+		return nil, err
 	}
-	return JournalEntries, nil
+	defer rows.Close()
+
+	var journals []Journal
+	for rows.Next() {
+		var journal Journal
+		if err := rows.Scan(&journal.ID, &journal.Content); err != nil {
+			return nil, err
+		}
+		journals = append(journals, journal)
+	}
+	return journals, nil
+}
+
+func StoreGamePlan(tasks []string, summary string) error {
+	// Convert tasks slice to a single string
+	tasksText := ""
+	for _, task := range tasks {
+		tasksText += task + "\n"
+	}
+
+	query := `INSERT INTO game_plans (tasks, summary) VALUES (?, ?)`
+	_, err := database.DB.Exec(query, tasksText, summary)
+	return err
 }

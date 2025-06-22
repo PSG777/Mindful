@@ -32,3 +32,24 @@ func AddJournalEntryHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
+
+func GetJournalEntriesHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet {
+        http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+        return
+    }
+
+    journals, err := models.GetAllJournalEntries()
+    if err != nil {
+        http.Error(w, "Failed to retrieve journal entries", http.StatusInternalServerError)
+        return
+    }
+
+    if len(journals) == 0 {
+        http.Error(w, "No journal entries available", http.StatusNotFound)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(journals)
+}

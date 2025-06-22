@@ -1,18 +1,21 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"mindful/backend-go/handlers"
+    "log"
+    "net/http"
+    "mindful/backend-go/database"
+    "mindful/backend-go/handlers"
 )
 
 func main() {
-	http.HandleFunc("/add-transcript", handlers.AddTranscriptHandler)
-	http.HandleFunc("/add-journal-entry", handlers.AddJournalEntryHandler)
-	http.HandleFunc("/generate-gameplan", handlers.GenerateGameplanHandler)
+    database.InitDB()
 
-	log.Println("Starting server on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal("Server failed to start: ", err)
-	}
+    http.HandleFunc("/transcripts/add", handlers.AddTranscriptHandler)
+    http.HandleFunc("/transcripts", handlers.GetTranscriptsHandler)
+    http.HandleFunc("/journals/add", handlers.AddJournalEntryHandler)
+    http.HandleFunc("/journals", handlers.GetJournalEntriesHandler)
+    http.HandleFunc("/gameplan/analyze", handlers.AnalyzeAndStoreGamePlanHandler)
+
+    log.Println("Server is running on port 8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
 }
