@@ -18,15 +18,18 @@ func AddTranscriptHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.Transcript
+	var req TranscriptRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
 
-	query := `INSERT INTO transcripts (session_id, transcript) VALUES (?, ?)`
-	_, err := database.DB.Exec(query, req.SessionID, req.Transcript)
-	if err != nil {
+	transcript := models.Transcript{
+		SessionID:  req.SessionID,
+		Transcript: req.Transcript,
+	}
+
+	if err := database.DB.Create(&transcript).Error; err != nil {
 		http.Error(w, "Failed to add transcript", http.StatusInternalServerError)
 		return
 	}
@@ -42,21 +45,10 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := database.DB.Query(`SELECT id, session_id, transcript FROM transcripts`)
-	if err != nil {
+	var transcripts []models.Transcript
+	if err := database.DB.Find(&transcripts).Error; err != nil {
 		http.Error(w, "Failed to retrieve transcripts", http.StatusInternalServerError)
 		return
-	}
-	defer rows.Close()
-
-	var transcripts []models.Transcript
-	for rows.Next() {
-		var t models.Transcript
-		if err := rows.Scan(&t.ID, &t.SessionID, &t.Transcript); err != nil {
-			http.Error(w, "Failed to parse transcripts", http.StatusInternalServerError)
-			return
-		}
-		transcripts = append(transcripts, t)
 	}
 
 	if len(transcripts) == 0 {

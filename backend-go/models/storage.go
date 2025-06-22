@@ -1,9 +1,9 @@
 package models
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
+	"mindful/backend-go/database"
 )
 
 type Transcript struct {
@@ -12,14 +12,8 @@ type Transcript struct {
 	Transcript string `json:"transcript"`
 }
 
-var db *sql.DB
-
-func InitDatabase(database *sql.DB) {
-	db = database
-}
-
 func GetTranscripts() ([]Transcript, error) {
-	rows, err := db.Query(`SELECT id, session_id, transcript FROM transcripts`)
+	rows, err := database.DB.Raw(`SELECT id, session_id, transcript FROM transcripts`).Rows()
 	if err != nil {
 		return nil, fmt.Errorf("error querying transcripts: %w", err)
 	}
