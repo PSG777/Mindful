@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Book, Mic, Search, MessageCircle, FileText } from "lucide-react";
+import { Book, Mic, Search, MessageCircle, FileText, X } from "lucide-react";
 
 interface JournalEntry {
   id: number;
@@ -31,6 +31,14 @@ interface HistoryItem {
   content: string;
   type: 'journal' | 'transcript';
   session_id?: string;
+  emotional_state?: string;
+}
+
+interface TranscriptDetail {
+  id: number;
+  session_id: string;
+  transcript: string;
+  created_at?: string;
 }
 
 const API_BASE_URL = "https://mindful-wbz7.onrender.com";
@@ -41,6 +49,9 @@ export default function JournalPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<TranscriptDetail | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   // Fetch data from Go backend
   useEffect(() => {
@@ -51,18 +62,27 @@ export default function JournalPage() {
     try {
       setIsLoading(true);
       
+      console.log('=== FETCHING HISTORY DATA ===');
+      
       const [transcriptsRes, journalsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/transcripts`),
         fetch(`${API_BASE_URL}/journals`),
       ]);
       
+      console.log('Transcripts response status:', transcriptsRes.status);
+      console.log('Journals response status:', journalsRes.status);
+      
       const transcripts: Transcript[] = transcriptsRes.ok ? await transcriptsRes.json() : [];
       const journalEntries: JournalEntry[] = journalsRes.ok ? await journalsRes.json() : [];
+
+      console.log('Raw transcripts data:', transcripts);
+      console.log('Raw journals data:', journalEntries);
 
       const combinedItems: HistoryItem[] = [];
 
       if (Array.isArray(transcripts)) {
         transcripts.forEach((transcript) => {
+          console.log('Processing transcript:', transcript);
           combinedItems.push({
             id: `transcript-${transcript.id}`,
             date: new Date().toLocaleDateString(),
@@ -86,6 +106,8 @@ export default function JournalPage() {
 
       combinedItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
+      console.log('Final combined items:', combinedItems);
+      
       setHistoryItems(combinedItems);
     } catch (error) {
       console.error('Error fetching history data:', error);
@@ -94,8 +116,65 @@ export default function JournalPage() {
     }
   };
 
+  const handleSessionClick = async (sessionId: string) => {
+    try {
+      console.log('=== SESSION CLICK DEBUG ===');
+      console.log('Clicked session ID:', sessionId);
+      console.log('Session type:', typeof sessionId);
+      
+      setIsLoadingSession(true);
+      setIsModalOpen(true);
+      
+      // Log the API URL being called
+      const apiUrl = `${API_BASE_URL}/transcripts/${sessionId}`;
+      console.log('Calling API:', apiUrl);
+      
+      // Fetch the specific transcript data
+      const response = await fetch(apiUrl);
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
+      if (response.ok) {
+        const transcriptData: TranscriptDetail = await response.json();
+        console.log('Received transcript data:', transcriptData);
+        setSelectedSession(transcriptData);
+      } else {
+        console.error('Failed to fetch session details');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        
+        // Fallback: try to find the session in our local data
+        console.log('Trying fallback with local data...');
+        console.log('Available history items:', historyItems);
+        
+        const session = historyItems.find(item => item.session_id === sessionId);
+        console.log('Found session in local data:', session);
+        
+        if (session) {
+          console.log('Using fallback session data');
+          setSelectedSession({
+            id: parseInt(session.id.replace('transcript-', '')),
+            session_id: sessionId,
+            transcript: session.content,
+          });
+        } else {
+          console.error('Session not found in local data either');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching session details:', error);
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (newEntry.trim() === "") return;
+
+    console.log("Attempting to submit new journal entry...");
+    console.log("Sending to:", `${API_BASE_URL}/journals/add`);
+    console.log("Payload:", JSON.stringify({ content: newEntry }));
 
     try {
       const response = await fetch(`${API_BASE_URL}/journals/add`, {
@@ -106,16 +185,18 @@ export default function JournalPage() {
         body: JSON.stringify({ content: newEntry }),
       });
 
+      console.log("Received response from server with status:", response.status);
+
       if (response.ok) {
+        console.log("Journal entry saved successfully.");
         setNewEntry("");
         fetchHistoryData(); // Refresh history
-        console.log('Journal entry saved successfully');
-        console.log('New Entry:', response);
       } else {
-        console.error('Failed to save journal entry');
+        const errorText = await response.text();
+        console.error('Failed to save journal entry. Server responded with:', errorText);
       }
     } catch (error) {
-      console.error('Error saving journal entry:', error);
+      console.error('Error during fetch operation for saving journal entry:', error);
     }
   };
 
@@ -127,6 +208,11 @@ export default function JournalPage() {
   const filteredItems = historyItems.filter((item) =>
     item.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedSession(null);
+  };
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -193,7 +279,13 @@ export default function JournalPage() {
                 </div>
               ) : (
                 filteredItems.map((item) => (
-                  <div key={item.id} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div 
+                    key={item.id} 
+                    className={`p-4 border rounded-lg hover:bg-gray-50 transition-colors ${
+                      item.type === 'transcript' ? 'cursor-pointer' : ''
+                    }`}
+                    onClick={() => item.type === 'transcript' && item.session_id ? handleSessionClick(item.session_id) : undefined}
+                  >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {item.type === 'transcript' ? (
@@ -224,6 +316,50 @@ export default function JournalPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Transcript Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-semibold">Voice Session Transcript</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeModal}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {isLoadingSession ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="text-sm text-gray-600 mt-2">Loading transcript...</p>
+                </div>
+              ) : selectedSession ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>Session ID: {selectedSession.session_id}</span>
+                    {selectedSession.created_at && (
+                      <span>• {new Date(selectedSession.created_at).toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-semibold mb-2">Full Transcript:</h3>
+                    <div className="whitespace-pre-wrap text-sm text-gray-700">
+                      {selectedSession.transcript}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-600">No transcript data available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

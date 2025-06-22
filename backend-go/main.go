@@ -27,13 +27,6 @@ func main() {
 	database.InitDB()
 	models.InitDatabase(database.DB)
 
-	http.HandleFunc("/transcripts/add", handlers.AddTranscriptHandler)
-	http.HandleFunc("/transcripts", handlers.GetTranscriptsHandler)
-	http.HandleFunc("/journals/add", handlers.AddJournalEntryHandler)
-	http.HandleFunc("/journals", handlers.GetJournalEntriesHandler)
-	http.HandleFunc("/gameplan/analyze", handlers.AnalyzeAndStoreGamePlanHandler)
-	http.HandleFunc("/gameplans", handlers.GetGamePlansHandler) // New endpoint
-
     // Configure CORS
     c := cors.New(cors.Options{
         AllowedOrigins: []string{

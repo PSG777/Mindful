@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import Vapi from "@vapi-ai/web";
+import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE_URL = "https://mindful-wbz7.onrender.com";
 
@@ -32,17 +33,16 @@ export default function Home() {
   const [status, setStatus] = useState("Ready to start your therapy session");
   const [transcript, setTranscript] = useState<Array<{ speaker: string; text: string }>>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string>("");
 
   const vapiRef = useRef<Vapi | null>(null);
-  const saveTranscript = useRef<Array<{ speaker: string; text: string }>>([]); // New array for saving transcript
+  const saveTranscript = useRef<Array<{ speaker: string; text: string }>>([]);
+  const sessionIdRef = useRef<string>("");
 
   useEffect(() => {
-    setSessionId(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-  }, []);
+    // Generate a unique session ID once when the component mounts
+    sessionIdRef.current = uuidv4();
+    console.log("New Session ID:", sessionIdRef.current);
 
-  useEffect(() => {
-    // Initialize Vapi with your public key
     const vapi = new Vapi("aae6435f-d8cc-4072-a2f2-24123cbc14ae");
     vapiRef.current = vapi;
 
@@ -58,9 +58,8 @@ export default function Home() {
       setIsResponding(false);
       setStatus("Session ended - Thank you for sharing");
 
-      // Send transcript to backend when call ends
-      if (saveTranscript.current.length > 0) { // Use the new array
-        console.log("Saving transcript to backend...");
+      if (saveTranscript.current.length > 0) {
+        console.log("Saving transcript to backend for session:", sessionIdRef.current);
         try {
           const fullTranscript = saveTranscript.current.map(msg => `${msg.speaker}: ${msg.text}`).join('\n');
           const response = await fetch(`${API_BASE_URL}/transcripts/add`, {
@@ -69,13 +68,16 @@ export default function Home() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              session_id: sessionId,
+              session_id: sessionIdRef.current, // Use ref to ensure correct value
               transcript: fullTranscript,
             }),
           });
 
           if (response.ok) {
             console.log('Transcript saved successfully.');
+            // Generate a new session ID for the next call
+            sessionIdRef.current = uuidv4();
+            console.log("Ready for next session. New ID:", sessionIdRef.current);
           } else {
             console.error('Failed to save transcript');
           }

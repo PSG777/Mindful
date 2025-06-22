@@ -5,6 +5,7 @@ import (
 	"mindful/backend-go/database"
 	"mindful/backend-go/models"
 	"net/http"
+	"strings"
 )
 
 type TranscriptRequest struct {
@@ -42,6 +43,14 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if this is a request for a specific transcript
+	path := strings.TrimPrefix(r.URL.Path, "/transcripts/")
+	if path != "" && path != "transcripts" {
+		// This is a request for a specific transcript by session_id
+		GetTranscriptBySessionIDHandler(w, r, path)
+		return
+	}
+
 	rows, err := database.DB.Query(`SELECT id, session_id, transcript FROM transcripts`)
 	if err != nil {
 		http.Error(w, "Failed to retrieve transcripts", http.StatusInternalServerError)
@@ -66,4 +75,23 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(transcripts)
+}
+
+func GetTranscriptBySessionIDHandler(w http.ResponseWriter, r *http.Request, sessionID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	query := `SELECT id, session_id, transcript FROM transcripts WHERE session_id = ?`
+	row := database.DB.QueryRow(query, sessionID)
+
+	var transcript models.Transcript
+	if err := row.Scan(&transcript.ID, &transcript.SessionID, &transcript.Transcript); err != nil {
+		http.Error(w, "Transcript not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(transcript)
 }
