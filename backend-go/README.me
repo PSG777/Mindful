@@ -1,0 +1,29 @@
+# Mindful Backend API
+
+## Overview
+This API is designed to store and analyze mental health conversations. It provides routes for adding transcripts, journal entries, and generating a game plan based on the provided data. This is a prototype version aimed at exploring mental health data analysis.
+
+## How to Run
+1. Ensure you have Go installed on your system.
+2. Set up the `.env` file with your OpenAI API key:
+   ```plaintext
+   OPENAI_API_KEY=your_key_here
+   ```
+3. Run the application using the following command:
+   ```bash
+   go run main.go
+   ```
+
+## Available Routes
+- **POST /add-transcript**: Add a transcript for analysis.
+- **POST /add-journal-entry**: Add a journal entry for storage and analysis.
+- **GET /generate-gameplan**: Generate a game plan based on the provided data.
+
+## Setting the OpenAI API Key
+The API requires an OpenAI API key to function. Add your API key to the `.env` file in the following format:
+```plaintext
+OPENAI_API_KEY=your_key_here
+```
+
+## Prototype Version
+This is a prototype version of the API, designed for storing and analyzing mental health conversations. It is not intended for production use and may undergo significant changes in future iterations.
