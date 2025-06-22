@@ -23,6 +23,7 @@ interface Transcript {
   id: number;
   session_id: string;
   transcript: string;
+  created_at: string;
 }
 
 interface HistoryItem {
@@ -52,6 +53,7 @@ export default function JournalPage() {
   const [selectedSession, setSelectedSession] = useState<TranscriptDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch data from Go backend
   useEffect(() => {
@@ -85,7 +87,7 @@ export default function JournalPage() {
           console.log('Processing transcript:', transcript);
           combinedItems.push({
             id: `transcript-${transcript.id}`,
-            date: new Date().toLocaleDateString(),
+            date: new Date(transcript.created_at).toLocaleDateString(),
             content: transcript.transcript,
             type: 'transcript',
             session_id: transcript.session_id,
@@ -140,10 +142,9 @@ export default function JournalPage() {
         console.log('Received transcript data:', transcriptData);
         setSelectedSession(transcriptData);
       } else {
-        console.error('Failed to fetch session details');
         const errorText = await response.text();
-        console.error('Error response:', errorText);
-        
+        console.error('Failed to fetch session details. Status:', response.status, 'Response:', errorText);
+        setError(`Could not load session. Server responded with status ${response.status}.`);
         // Fallback: try to find the session in our local data
         console.log('Trying fallback with local data...');
         console.log('Available history items:', historyItems);
@@ -191,12 +192,23 @@ export default function JournalPage() {
         console.log("Journal entry saved successfully.");
         setNewEntry("");
         fetchHistoryData(); // Refresh history
+        await triggerGamePlanAnalysis();
       } else {
         const errorText = await response.text();
         console.error('Failed to save journal entry. Server responded with:', errorText);
       }
     } catch (error) {
       console.error('Error during fetch operation for saving journal entry:', error);
+    }
+  };
+
+  const triggerGamePlanAnalysis = async () => {
+    console.log("Triggering new game plan analysis from journal entry...");
+    try {
+      // We don't need to wait for this or handle the response, just fire and forget
+      fetch(`${API_BASE_URL}/gameplan/analyze`);
+    } catch (error) {
+      console.error('Error triggering game plan analysis:', error);
     }
   };
 
@@ -356,6 +368,7 @@ export default function JournalPage() {
               ) : (
                 <p className="text-gray-600">No transcript data available.</p>
               )}
+              {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
             </div>
           </div>
         </div>

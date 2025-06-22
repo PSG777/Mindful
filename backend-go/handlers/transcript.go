@@ -51,7 +51,7 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := database.DB.Query(`SELECT id, session_id, transcript FROM transcripts`)
+	rows, err := database.DB.Query(`SELECT id, session_id, transcript, created_at FROM transcripts ORDER BY created_at DESC`)
 	if err != nil {
 		http.Error(w, "Failed to retrieve transcripts", http.StatusInternalServerError)
 		return
@@ -61,7 +61,7 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 	var transcripts []models.Transcript
 	for rows.Next() {
 		var t models.Transcript
-		if err := rows.Scan(&t.ID, &t.SessionID, &t.Transcript); err != nil {
+		if err := rows.Scan(&t.ID, &t.SessionID, &t.Transcript, &t.CreatedAt); err != nil {
 			http.Error(w, "Failed to parse transcripts", http.StatusInternalServerError)
 			return
 		}
@@ -69,7 +69,8 @@ func GetTranscriptsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(transcripts) == 0 {
-		http.Error(w, "No transcripts available", http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]models.Transcript{})
 		return
 	}
 
@@ -83,11 +84,11 @@ func GetTranscriptBySessionIDHandler(w http.ResponseWriter, r *http.Request, ses
 		return
 	}
 
-	query := `SELECT id, session_id, transcript FROM transcripts WHERE session_id = ?`
+	query := `SELECT id, session_id, transcript, created_at FROM transcripts WHERE session_id = ?`
 	row := database.DB.QueryRow(query, sessionID)
 
 	var transcript models.Transcript
-	if err := row.Scan(&transcript.ID, &transcript.SessionID, &transcript.Transcript); err != nil {
+	if err := row.Scan(&transcript.ID, &transcript.SessionID, &transcript.Transcript, &transcript.CreatedAt); err != nil {
 		http.Error(w, "Transcript not found", http.StatusNotFound)
 		return
 	}
