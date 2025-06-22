@@ -35,6 +35,7 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string>("");
 
   const vapiRef = useRef<Vapi | null>(null);
+  const saveTranscript = useRef<Array<{ speaker: string; text: string }>>([]); // New array for saving transcript
 
   useEffect(() => {
     setSessionId(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
@@ -56,11 +57,12 @@ export default function Home() {
       setIsListening(false);
       setIsResponding(false);
       setStatus("Session ended - Thank you for sharing");
-      
+
       // Send transcript to backend when call ends
-      if (transcript.length > 0) {
+      if (saveTranscript.current.length > 0) { // Use the new array
+        console.log("Saving transcript to backend...");
         try {
-          const fullTranscript = transcript.map(msg => `${msg.speaker}: ${msg.text}`).join('\n');
+          const fullTranscript = saveTranscript.current.map(msg => `${msg.speaker}: ${msg.text}`).join('\n');
           const response = await fetch(`${API_BASE_URL}/transcripts/add`, {
             method: 'POST',
             headers: {
@@ -71,7 +73,7 @@ export default function Home() {
               transcript: fullTranscript,
             }),
           });
-          
+
           if (response.ok) {
             console.log('Transcript saved successfully.');
           } else {
@@ -98,6 +100,13 @@ export default function Home() {
       if (message.type === "transcript" && message.transcript) {
         setTranscript((prev) => {
           const currentSpeaker = message.role === "user" ? "You" : "Therapist";
+
+          // Append to saveTranscript array
+          saveTranscript.current.push({
+            speaker: currentSpeaker,
+            text: message.transcript,
+          });
+
           // If last message is same speaker, always replace it with the new transcript
           if (
             prev.length > 0 &&

@@ -109,6 +109,8 @@ export default function JournalPage() {
       if (response.ok) {
         setNewEntry("");
         fetchHistoryData(); // Refresh history
+        console.log('Journal entry saved successfully');
+        console.log('New Entry:', response);
       } else {
         console.error('Failed to save journal entry');
       }
