@@ -6,16 +6,23 @@ import (
 	"mindful/backend-go/handlers"
 	"mindful/backend-go/models"
 	"net/http"
-
+    "os"
 	"github.com/joho/godotenv"
 )
 
+func init() {
+	// Load .env only if running locally
+	if os.Getenv("RENDER") == "" {
+		_ = godotenv.Load(".env")
+	}
+}
+
 func main() {
 
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	if os.Getenv("GEMINI_API_KEY") == "" {
+		log.Fatal("GEMINI_API_KEY is not set")
 	}
+    
 	database.InitDB()
 	models.InitDatabase(database.DB)
 
