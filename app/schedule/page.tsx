@@ -1,44 +1,104 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, CalendarDays, Clock, Plus } from 'lucide-react';
+import { Calendar, CalendarDays, Clock, Plus, Loader2 } from 'lucide-react';
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  description?: string;
+  location?: string;
+}
 
 export default function SchedulePage() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: 'Therapy Session',
-      time: '10:00 AM - 11:00 AM',
-      date: 'Today',
-      type: 'therapy'
-    },
-    {
-      id: 2,
-      title: 'Mindfulness Practice',
-      time: '2:00 PM - 2:30 PM',
-      date: 'Tomorrow',
-      type: 'wellness'
+  const { data: session, status } = useSession();
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCalendarEvents = async () => {
+    if (!session?.accessToken) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/calendar/events');
+      if (!response.ok) {
+        throw new Error('Failed to fetch events');
+      }
+      
+      const data = await response.json();
+      setEvents(data.events || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch events');
+      console.error('Error fetching events:', err);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    if (session?.accessToken) {
+      fetchCalendarEvents();
+    }
+  }, [session?.accessToken]);
 
   const handleConnectGoogleCalendar = () => {
-    // TODO: Implement Google Calendar OAuth
-    setIsConnected(true);
-    console.log('Connecting to Google Calendar...');
+    signIn('google');
   };
 
   const handleDisconnectGoogleCalendar = () => {
-    setIsConnected(false);
-    console.log('Disconnecting from Google Calendar...');
+    signOut();
   };
 
   const handleAddEvent = () => {
     // TODO: Implement add event functionality
     console.log('Adding new event...');
   };
+
+  const formatEventTime = (dateTime: string) => {
+    const date = new Date(dateTime);
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatEventDate = (dateTime: string) => {
+    const date = new Date(dateTime);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+  };
+
+  if (status === 'loading') {
+    return (
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -59,7 +119,7 @@ export default function SchedulePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!isConnected ? (
+          {!session ? (
             <Button 
               onClick={handleConnectGoogleCalendar}
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -71,7 +131,7 @@ export default function SchedulePage() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-green-600">
                 <Calendar className="h-4 w-4" />
-                <span className="font-medium">Connected to Google Calendar</span>
+                <span className="font-medium">Connected as {session.user?.email}</span>
               </div>
               <Button 
                 variant="outline" 
@@ -80,10 +140,30 @@ export default function SchedulePage() {
               >
                 Disconnect
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={fetchCalendarEvents}
+                disabled={loading}
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Refresh Events'
+                )}
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {error && (
+        <Card className="mb-6 border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Calendar Display */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -104,16 +184,30 @@ export default function SchedulePage() {
             </CardHeader>
             <CardContent>
               <div className="min-h-[400px] bg-gray-50 rounded-lg p-4">
-                <div className="text-center text-gray-500 py-8">
-                  <CalendarDays className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium mb-2">Calendar View</p>
-                  <p className="text-sm">
-                    {isConnected 
-                      ? "Your Google Calendar events will appear here"
-                      : "Connect your Google Calendar to see your events"
-                    }
-                  </p>
-                </div>
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : session ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <CalendarDays className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium mb-2">Calendar View</p>
+                    <p className="text-sm">
+                      {events.length > 0 
+                        ? `${events.length} events loaded from Google Calendar`
+                        : "No upcoming events found"
+                      }
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 py-8">
+                    <CalendarDays className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium mb-2">Calendar View</p>
+                    <p className="text-sm">
+                      Connect your Google Calendar to see your events
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -130,28 +224,37 @@ export default function SchedulePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {events.map((event) => (
-                  <div 
-                    key={event.id}
-                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{event.title}</h4>
-                        <p className="text-sm text-gray-600">{event.time}</p>
-                        <p className="text-xs text-gray-500">{event.date}</p>
-                      </div>
-                      <div className={`w-3 h-3 rounded-full ${
-                        event.type === 'therapy' ? 'bg-blue-500' : 'bg-green-500'
-                      }`} />
-                    </div>
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ))}
-                
-                {events.length === 0 && (
+                ) : events.length > 0 ? (
+                  events.map((event) => (
+                    <div 
+                      key={event.id}
+                      className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{event.title}</h4>
+                          <p className="text-sm text-gray-600">
+                            {formatEventTime(event.start)} - {formatEventTime(event.end)}
+                          </p>
+                          <p className="text-xs text-gray-500">{formatEventDate(event.start)}</p>
+                          {event.location && (
+                            <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
+                          )}
+                        </div>
+                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                      </div>
+                    </div>
+                  ))
+                ) : (
                   <div className="text-center text-gray-500 py-8">
                     <Clock className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No upcoming events</p>
+                    <p className="text-sm">
+                      {session ? 'No upcoming events' : 'Connect to see events'}
+                    </p>
                   </div>
                 )}
               </div>
