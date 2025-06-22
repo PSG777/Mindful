@@ -1,67 +1,115 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, CalendarDays, Clock, Plus } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Calendar, CalendarDays, Clock, Plus, Loader2 } from 'lucide-react';
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  description?: string;
+  location?: string;
+}
 
 export default function SchedulePage() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: 'Therapy Session',
-      time: '10:00 AM - 11:00 AM',
-      date: 'Today',
-      type: 'therapy'
-    },
-    {
-      id: 2,
-      title: 'Mindfulness Practice',
-      time: '2:00 PM - 2:30 PM',
-      date: 'Tomorrow',
-      type: 'wellness'
+  const { data: session, status } = useSession();
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch events from your API route
+  const fetchCalendarEvents = async () => {
+    if (!session?.accessToken) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/calendar/events');
+      if (!res.ok) throw new Error('Failed to fetch events');
+      const json = await res.json();
+      setEvents(json.events || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
     }
-  ]);
-
-  const handleConnectGoogleCalendar = () => {
-    // TODO: Implement Google Calendar OAuth
-    setIsConnected(true);
-    console.log('Connecting to Google Calendar...');
   };
 
-  const handleDisconnectGoogleCalendar = () => {
-    setIsConnected(false);
-    console.log('Disconnecting from Google Calendar...');
+  // When we have a session (i.e. signed in), load events
+  useEffect(() => {
+    if (session?.accessToken) fetchCalendarEvents();
+  }, [session?.accessToken]);
+
+  // Helpers for formatting
+  const formatEventTime = (dt: string) =>
+    new Date(dt).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+  const formatEventDate = (dt: string) => {
+    const date = new Date(dt);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
-  const handleAddEvent = () => {
-    // TODO: Implement add event functionality
-    console.log('Adding new event...');
-  };
+  // Loading spinner while session is loading
+  if (status === 'loading') {
+    return (
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Schedule</h1>
-        <p className="text-gray-600">Manage your appointments and wellness activities</p>
+    <div className="container mx-auto p-6 max-w-6xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Schedule</h1>
+        <p className="text-gray-600">
+          Manage your appointments and wellness activities
+        </p>
       </div>
 
       {/* Google Calendar Connection */}
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             Google Calendar Integration
           </CardTitle>
           <CardDescription>
-            Connect your Google Calendar to sync appointments and wellness activities
+            {session
+              ? `Connected as ${session.user?.email}`
+              : 'Connect your Google Calendar to sync events'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!isConnected ? (
-            <Button 
-              onClick={handleConnectGoogleCalendar}
+          {!session ? (
+            <Button
+              onClick={() => signIn('google')}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Calendar className="h-4 w-4 mr-2" />
@@ -69,57 +117,78 @@ export default function SchedulePage() {
             </Button>
           ) : (
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-green-600">
-                <Calendar className="h-4 w-4" />
-                <span className="font-medium">Connected to Google Calendar</span>
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={handleDisconnectGoogleCalendar}
+              <Button
+                variant="outline"
+                onClick={() => signOut()}
                 className="text-red-600 border-red-200 hover:bg-red-50"
               >
                 Disconnect
               </Button>
+              <Button
+                variant="outline"
+                onClick={fetchCalendarEvents}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Refresh Events'
+                )}
+              </Button>
             </div>
+          )}
+          {error && (
+            <p className="mt-2 text-red-600">Error: {error}</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Calendar Display */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar View */}
+      {/* Calendar Overview */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Big Calendar Card */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <CalendarDays className="h-5 w-5" />
                   Calendar
-                </span>
-                <Button onClick={handleAddEvent}>
+                </div>
+                <Button onClick={() => {/* TODO: hook up add-event */}}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Event
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="min-h-[400px] bg-gray-50 rounded-lg p-4">
-                <div className="text-center text-gray-500 py-8">
-                  <CalendarDays className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium mb-2">Calendar View</p>
-                  <p className="text-sm">
-                    {isConnected 
-                      ? "Your Google Calendar events will appear here"
-                      : "Connect your Google Calendar to see your events"
-                    }
+              <div className="min-h-[300px] bg-gray-50 rounded-lg p-8 flex flex-col items-center justify-center">
+                {loading ? (
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                ) : !session ? (
+                  <>
+                    <CalendarDays className="h-12 w-12 text-gray-300 mb-4" />
+                    <p className="text-gray-500">
+                      Connect your Google Calendar to see events
+                    </p>
+                  </>
+                ) : events.length === 0 ? (
+                  <>
+                    <CalendarDays className="h-12 w-12 text-gray-300 mb-4" />
+                    <p className="text-gray-500">
+                      No upcoming events in the next 7 days
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-gray-700">
+                    {events.length} event{events.length > 1 && 's'} loaded
                   </p>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Upcoming Events */}
+        {/* Upcoming Events List */}
         <div>
           <Card>
             <CardHeader>
@@ -130,58 +199,36 @@ export default function SchedulePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {events.map((event) => (
-                  <div 
-                    key={event.id}
-                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{event.title}</h4>
-                        <p className="text-sm text-gray-600">{event.time}</p>
-                        <p className="text-xs text-gray-500">{event.date}</p>
-                      </div>
-                      <div className={`w-3 h-3 rounded-full ${
-                        event.type === 'therapy' ? 'bg-blue-500' : 'bg-green-500'
-                      }`} />
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                ) : events.length > 0 ? (
+                  events.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-3 border rounded-lg hover:bg-gray-50 transition"
+                    >
+                      <h4 className="font-medium">{ev.title}</h4>
+                      <p className="text-sm text-gray-600">
+                        {formatEventTime(ev.start)} —{' '}
+                        {formatEventTime(ev.end)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatEventDate(ev.start)}
+                      </p>
                     </div>
-                  </div>
-                ))}
-                
-                {events.length === 0 && (
-                  <div className="text-center text-gray-500 py-8">
-                    <Clock className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No upcoming events</p>
-                  </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center">
+                    {!session
+                      ? 'Connect to see events'
+                      : 'No upcoming events'}
+                  </p>
                 )}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button variant="outline" className="h-20 flex-col">
-              <Plus className="h-5 w-5 mb-2" />
-              <span>Add Therapy Session</span>
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <Calendar className="h-5 w-5 mb-2" />
-              <span>Schedule Wellness Activity</span>
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <Clock className="h-5 w-5 mb-2" />
-              <span>Set Reminder</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
-} 
+}
