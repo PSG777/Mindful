@@ -1,7 +1,9 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 )
 
 type Transcript struct {
@@ -10,19 +12,31 @@ type Transcript struct {
 	Transcript string `json:"transcript"`
 }
 
-var Transcripts []Transcript
+var db *sql.DB
 
-func AddTranscript(sessionID, transcript string) error {
-	Transcripts = append(Transcripts, Transcript{
-		SessionID:  sessionID,
-		Transcript: transcript,
-	})
-	return nil
+func InitDatabase(database *sql.DB) {
+	db = database
 }
 
 func GetTranscripts() ([]Transcript, error) {
-	if len(Transcripts) == 0 {
+	rows, err := db.Query(`SELECT id, session_id, transcript FROM transcripts`)
+	if err != nil {
+		return nil, fmt.Errorf("error querying transcripts: %w", err)
+	}
+	defer rows.Close()
+
+	var transcripts []Transcript
+	for rows.Next() {
+		var t Transcript
+		if err := rows.Scan(&t.ID, &t.SessionID, &t.Transcript); err != nil {
+			return nil, fmt.Errorf("error scanning transcript row: %w", err)
+		}
+		transcripts = append(transcripts, t)
+	}
+
+	if len(transcripts) == 0 {
 		return nil, errors.New("no transcripts available")
 	}
-	return Transcripts, nil
+
+	return transcripts, nil
 }

@@ -1,112 +1,131 @@
 package utils
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
+	"mindful/backend-go/models"
+	"strings"
+	"google.golang.org/genai"
+	"log"
+	"os"
 )
 
-type OpenAIRequest struct {
-	Model       string `json:"model"`
-	Prompt      string `json:"prompt"`
-	MaxTokens   int    `json:"max_tokens"`
-	Temperature float64 `json:"temperature"`
-}
-
-type OpenAIResponse struct {
-	Choices []struct {
-		Text string `json:"text"`
-	} `json:"choices"`
-}
-
 func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, summary string, err error) {
-	apiKey := "your-openai-api-key" // Replace with your actual API key
-	url := "https://api.openai.com/v1/completions"
+    log.Println("Initializing Gemini API client...")
+    ctx := context.Background()
+	apiKey := os.Getenv("GEMINI_API_KEY")
+    if apiKey == "" {
+        log.Println("Error: GEMINI_API_KEY is not set")
+        return nil, "", errors.New("API key is not set")
+    }
+    client, err := genai.NewClient(ctx, &genai.ClientConfig{
+        APIKey:   apiKey, 
+        Backend: genai.BackendGeminiAPI,
+    })
+    if err != nil {
+        log.Printf("Error initializing Gemini API client: %v", err)
+        return nil, "", errors.New("failed to initialize Gemini API client")
+    }
 
-	// Combine transcripts and journals into a single prompt
-	var combinedData string
-	for _, transcript := range transcripts {
-		combinedData += transcript + "\n"
+    log.Println("Combining transcripts and journals into a single prompt...")
+    var combinedData string
+    for _, transcript := range transcripts {
+        combinedData += transcript + "\n"
+    }
+    for _, journal := range journals {
+        combinedData += journal + "\n"
+    }
+
+    prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. 
+    Respond in the following JSON format:
+    {
+      "tasks": [
+        "Task 1",
+        "Task 2",
+        "Task 3"
+      ],
+      "summary": "Summary of the user's emotional state"
+    }
+    ` + combinedData
+
+    log.Println("Sending request to Gemini API...")
+    result, err := client.Models.GenerateContent(
+        ctx,
+        "gemini-2.5-flash",
+        genai.Text(prompt),
+        &genai.GenerateContentConfig{
+            ThinkingConfig: &genai.ThinkingConfig{
+                ThinkingBudget: func(i int32) *int32 { return &i }(0), // Pass a pointer to int32
+            },
+        },
+    )
+    if err != nil {
+        log.Printf("Error generating content using Gemini API: %v", err)
+        return nil, "", errors.New("failed to generate content using Gemini API")
+    }
+
+    // Log the raw response
+    log.Printf("Raw response from Gemini API: %s", result.Text())
+
+    // Extract the actual JSON content from the response
+    rawResponse := result.Text()
+    rawResponse = strings.TrimPrefix(rawResponse, "```json\n")
+    rawResponse = strings.TrimSuffix(rawResponse, "\n```")
+
+    log.Println("Parsing the response...")
+    var gamePlanResp struct {
+        Tasks   []string `json:"tasks"`
+        Summary string   `json:"summary"`
+    }
+    if err := json.Unmarshal([]byte(rawResponse), &gamePlanResp); err != nil {
+        log.Printf("Error parsing Gemini API response: %v", err)
+        return nil, "", errors.New("failed to parse Gemini API response")
+    }
+
+    // Log parsed tasks and summary
+    log.Printf("Parsed tasks: %v", gamePlanResp.Tasks)
+    log.Printf("Parsed summary: %s", gamePlanResp.Summary)
+
+    tasks = gamePlanResp.Tasks
+    summary = gamePlanResp.Summary
+
+    log.Println("Categorizing emotional state...")
+    emotionalState := CategorizeEmotionalState(summary)
+
+    log.Println("Storing the game plan in the database...")
+    err = models.StoreGamePlan(tasks, summary, emotionalState)
+    if err != nil {
+        log.Printf("Error storing game plan in the database: %v", err)
+        return nil, "", errors.New("failed to store game plan in the database")
+    }
+
+    log.Println("Game plan generated successfully.")
+    return tasks, summary, nil
+}
+
+// Categorize emotional state into predefined categories
+func CategorizeEmotionalState(summary string) string {
+	if containsWord(summary, []string{"happy", "joyful", "content"}) {
+		return "happy"
+	} else if containsWord(summary, []string{"sad", "down", "depressed"}) {
+		return "sad"
+	} else if containsWord(summary, []string{"nervous", "anxious", "worried"}) {
+		return "nervous"
+	} else if containsWord(summary, []string{"angry", "frustrated", "mad"}) {
+		return "angry"
+	} else if containsWord(summary, []string{"fearful", "scared", "afraid"}) {
+		return "fearful"
 	}
-	for _, journal := range journals {
-		combinedData += journal + "\n"
-	}
+	return "neutral"
+}
 
-	prompt := `You are a supportive AI therapist. Based on these conversations and journal entries, generate 3 specific wellness tasks and summarize the user’s current emotional state. 
-	Respond in the following JSON format:
-	{
-	  "tasks": [
-		"Task 1",
-		"Task 2",
-		"Task 3"
-	  ],
-	  "summary": "Summary of the user's emotional state"
-	}
-	` + combinedData
-	// Create the OpenAI request payload
-	requestPayload := OpenAIRequest{
-		Model:       "gpt-4",
-		Prompt:      prompt,
-		MaxTokens:   200,
-		Temperature: 0.7,
-	}
-
-	requestBody, err := json.Marshal(requestPayload)
-	if err != nil {
-		return nil, "", err
-	}
-
-	// Send the POST request to OpenAI
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
-	if err != nil {
-		return nil, "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", errors.New("failed to get response from OpenAI")
-	}
-
-	// Parse the OpenAI response
-	var openAIResp OpenAIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openAIResp); err != nil {
-		return nil, "", err
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return nil, "", errors.New("no choices returned from OpenAI")
-	}
-
-	responseText := openAIResp.Choices[0].Text
-
-	// Basic string parsing to extract tasks and summary
-	// Assuming GPT returns structured text like:
-	// "Tasks:\n1. Task one\n2. Task two\n3. Task three\nSummary: Emotional state summary"
-	parts := bytes.Split([]byte(responseText), []byte("Summary:"))
-	if len(parts) < 2 {
-		return nil, "", errors.New("failed to parse GPT response")
-	}
-
-	tasksText := string(parts[0])
-	summary = string(parts[1])
-
-	// Extract tasks from the tasksText
-	lines := bytes.Split([]byte(tasksText), []byte("\n"))
-	for _, line := range lines {
-		line = bytes.TrimSpace(line)
-		if len(line) > 0 && !bytes.HasPrefix(line, []byte("Tasks:")) {
-			tasks = append(tasks, string(line))
+// Helper function to check if a word exists in the summary
+func containsWord(summary string, words []string) bool {
+	for _, word := range words {
+		if strings.Contains(strings.ToLower(summary), word) {
+			return true
 		}
 	}
-
-	return tasks, summary, nil
+	return false
 }
