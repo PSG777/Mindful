@@ -29,9 +29,11 @@ func AddTranscriptHandler(w http.ResponseWriter, r *http.Request) {
 	query := `INSERT INTO transcripts (session_id, transcript) VALUES (?, ?)`
 	_, err := database.DB.Exec(query, req.SessionID, req.Transcript)
 	if err != nil {
+		log.Printf("Failed to add transcript: %v", err)
 		http.Error(w, "Failed to add transcript", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("Transcript saved for session %s (%d chars)", req.SessionID, len(req.Transcript))
 
 	response := map[string]string{"message": "Transcript added successfully"}
 	w.Header().Set("Content-Type", "application/json")

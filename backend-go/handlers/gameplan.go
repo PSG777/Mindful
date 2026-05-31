@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"mindful/backend-go/debuglog"
 	"mindful/backend-go/models"
 	"mindful/backend-go/utils"
 	"net/http"
@@ -60,12 +61,24 @@ func GetGamePlansHandler(w http.ResponseWriter, r *http.Request) {
 
 	gamePlans, err := models.GetAllGamePlans()
 	if err != nil {
+		// #region agent log
+		debuglog.Write("H-B", "handlers/gameplan.go:GetGamePlansHandler", "query failed", map[string]interface{}{
+			"error": err.Error(),
+		})
+		// #endregion
 		http.Error(w, "Failed to retrieve game plans", http.StatusInternalServerError)
 		return
 	}
 
+	// #region agent log
+	debuglog.Write("H-B", "handlers/gameplan.go:GetGamePlansHandler", "query succeeded", map[string]interface{}{
+		"count": len(gamePlans),
+	})
+	// #endregion
+
 	if len(gamePlans) == 0 {
-		http.Error(w, "No game plans available", http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]models.GamePlan{})
 		return
 	}
 

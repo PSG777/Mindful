@@ -24,7 +24,30 @@ import {
 import Vapi from "@vapi-ai/web";
 import { v4 as uuidv4 } from 'uuid';
 
-const API_BASE_URL = "https://mindful-wbz7.onrender.com";
+const API_BASE_URL = "http://localhost:8080";
+const VAPI_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY ?? "";
+
+// #region agent log
+const debugSessionLog = (hypothesisId: string, location: string, message: string, data: Record<string, unknown>) => {
+  fetch('http://127.0.0.1:7852/ingest/61064503-bb28-42ae-9d20-dd83a34da3a8', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f7c147' },
+    body: JSON.stringify({ sessionId: 'f7c147', hypothesisId, location, message, data, timestamp: Date.now(), runId: 'transcript-save' }),
+  }).catch(() => {});
+};
+// #endregion
+
+const upsertTranscriptPart = (
+  buffer: Array<{ speaker: string; text: string }>,
+  part: { speaker: string; text: string }
+) => {
+  const last = buffer[buffer.length - 1];
+  if (last && last.speaker === part.speaker) {
+    buffer[buffer.length - 1] = part;
+  } else {
+    buffer.push(part);
+  }
+};
 
 interface GamePlan {
   summary: string;
@@ -51,7 +74,12 @@ export default function Home() {
     console.log("New Session ID:", sessionIdRef.current);
     fetchLatestGamePlan();
 
-    const vapi = new Vapi("aae6435f-d8cc-4072-a2f2-24123cbc14ae");
+    if (!VAPI_PUBLIC_KEY) {
+      setError("Missing NEXT_PUBLIC_VAPI_PUBLIC_KEY in .env.local");
+      return;
+    }
+
+    const vapi = new Vapi(VAPI_PUBLIC_KEY);
     vapiRef.current = vapi;
 
     vapi.on("call-start", () => {
@@ -66,6 +94,13 @@ export default function Home() {
       setIsResponding(false);
       setStatus("Session ended - Thank you for sharing");
 
+      // #region agent log
+      debugSessionLog('H-B', 'page.tsx:call-end', 'call ended', {
+        persistCount: saveTranscript.current.length,
+        sessionId: sessionIdRef.current,
+      });
+      // #endregion
+
       if (saveTranscript.current.length > 0) {
         console.log("Saving transcript to backend for session:", sessionIdRef.current);
         try {
@@ -76,27 +111,58 @@ export default function Home() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              session_id: sessionIdRef.current, // Use ref to ensure correct value
+              session_id: sessionIdRef.current,
               transcript: fullTranscript,
             }),
           });
 
+          // #region agent log
+          debugSessionLog('H-A', 'page.tsx:transcript-save', 'save response', {
+            status: response.status,
+            ok: response.ok,
+          });
+          // #endregion
+
           if (response.ok) {
             console.log('Transcript saved successfully.');
-            // Generate a new session ID for the next call
             sessionIdRef.current = uuidv4();
             console.log("Ready for next session. New ID:", sessionIdRef.current);
-            
-            // Automatically generate a new game plan
-            console.log("Triggering new game plan analysis...");
-            await generateNewGamePlan();
 
+            console.log("Triggering new game plan analysis...");
+            setIsGeneratingPlan(true);
+            try {
+              const analyzeRes = await fetch(`${API_BASE_URL}/gameplan/analyze`, { method: 'POST' });
+              // #region agent log
+              debugSessionLog('H-D', 'page.tsx:analyze', 'analyze response', {
+                status: analyzeRes.status,
+                ok: analyzeRes.ok,
+              });
+              // #endregion
+              if (!analyzeRes.ok) {
+                const errText = await analyzeRes.text();
+                console.error('Failed to generate game plan:', analyzeRes.status, errText);
+                setError('Session saved, but wellness plan generation failed. Is the backend running?');
+              } else {
+                await fetchLatestGamePlan();
+              }
+            } catch (analyzeError) {
+              console.error('Error generating game plan:', analyzeError);
+              setError('Session saved, but could not reach backend for wellness plan.');
+            } finally {
+              setIsGeneratingPlan(false);
+            }
           } else {
-            console.error('Failed to save transcript');
+            const errText = await response.text();
+            console.error('Failed to save transcript:', response.status, errText);
+            setError('Could not save session. Make sure the Go backend is running on port 8080.');
           }
         } catch (error) {
           console.error('Error saving transcript:', error);
+          setError('Could not reach backend at localhost:8080. Start it with: go run main.go');
         }
+      } else {
+        console.warn('No transcript content to save.');
+        setError('No conversation was captured to save. Try speaking longer before ending the session.');
       }
     });
 
@@ -124,26 +190,38 @@ export default function Home() {
       const currentSpeaker = message.role === "user" ? "You" : "Therapist";
       const newTranscriptPart = { speaker: currentSpeaker, text: message.transcript };
 
-      // Update the live display with both partial and final transcripts for a real-time effect.
+      // #region agent log
+      if (message.transcriptType === 'final') {
+        debugSessionLog('H-B', 'page.tsx:message', 'final transcript', {
+          role: message.role,
+          speaker: currentSpeaker,
+          textLen: message.transcript.length,
+        });
+      }
+      // #endregion
+
       setTranscript((prev) => {
         const lastMessage = prev[prev.length - 1];
-        // If the last message is from the same speaker, replace it.
         if (lastMessage && lastMessage.speaker === currentSpeaker) {
           return [...prev.slice(0, -1), newTranscriptPart];
         }
-        // Otherwise, add it as a new message.
         return [...prev, newTranscriptPart];
       });
 
-      // Only save the final transcript to the array that gets sent to the backend.
+      // Keep latest text per speaker for backend save (not only final events)
+      upsertTranscriptPart(saveTranscript.current, newTranscriptPart);
       if (message.transcriptType === 'final') {
-        saveTranscript.current.push(newTranscriptPart);
         console.log("Saved final transcript part:", newTranscriptPart);
       }
     });
 
-    vapi.on("error", (error: any) => {
-      setError("Connection error. Please try again.");
+    vapi.on("error", (vapiError: any) => {
+      const detail =
+        typeof vapiError === "string"
+          ? vapiError
+          : vapiError?.message ?? JSON.stringify(vapiError);
+      console.error("Vapi error:", detail);
+      setError(`Voice session error: ${detail}. Check Vapi dashboard credits and provider keys.`);
       setStatus("Error occurred - Please try reconnecting");
     });
 
@@ -157,14 +235,19 @@ export default function Home() {
   const fetchLatestGamePlan = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/gameplans`);
+      // #region agent log
+      debugSessionLog('H-E', 'page.tsx:fetchLatestGamePlan', 'gameplans response', {
+        status: response.status,
+        ok: response.ok,
+      });
+      // #endregion
       if (response.ok) {
         const plans: any[] = await response.json();
         if (plans.length > 0) {
-          // Assuming the API returns plans sorted by date, get the latest one
           const latestPlan = plans[0];
           setGamePlan({
             summary: latestPlan.summary,
-            tasks: latestPlan.tasks.split('\n'), // Assuming tasks are newline-separated
+            tasks: latestPlan.tasks.split('\n').filter((task: string) => task.trim()),
           });
         }
       }
@@ -173,38 +256,20 @@ export default function Home() {
     }
   };
 
-  const generateNewGamePlan = async () => {
-    setIsGeneratingPlan(true);
-    try {
-      // This endpoint triggers the analysis and storage, it requires a POST request.
-      await fetch(`${API_BASE_URL}/gameplan/analyze`, {
-        method: 'POST',
-      });
-      // After triggering, fetch the new result
-      await fetchLatestGamePlan();
-    } catch (error) {
-      console.error('Error generating new game plan:', error);
-    } finally {
-      setIsGeneratingPlan(false);
-    }
-  };
-
   const startCall = async () => {
     try {
+      if (!VAPI_PUBLIC_KEY) {
+        setError("Add NEXT_PUBLIC_VAPI_PUBLIC_KEY to .env.local and restart the dev server.");
+        return;
+      }
       setError(null);
       setStatus("Connecting to your AI therapist...");
-      // Start the call, but also immediately set a timeout fallback in case event doesn't fire
-      let didConnect = false;
-      const connectTimeout = setTimeout(() => {
-        if (!didConnect) {
-          setStatus("Connected - You can start speaking");
-          setIsConnected(true);
-        }
-      }, 3000); // fallback after 3 seconds
+      saveTranscript.current = [];
+      setTranscript([]);
       await vapiRef.current?.start({
         model: {
-          provider: "openai",
-          model: "gpt-4",
+          provider: "google",
+          model: "gemini-1.5-flash",
           messages: [
             {
               role: "system",
@@ -213,21 +278,13 @@ export default function Home() {
           ],
         },
         voice: {
-          provider: "playht",
-          voiceId: "jennifer",
-          speed: 0.9,
+          provider: "vapi",
+          voiceId: "Elliot",
         },
       });
-      // If the event fires, clear the fallback
-      vapiRef.current?.on("call-start", () => {
-        didConnect = true;
-        clearTimeout(connectTimeout);
-        setIsConnected(true);
-        setStatus("Connected - You can start speaking");
-        setError(null);
-      });
     } catch (error) {
-      setError("Failed to connect. Please check your microphone permissions and try again.");
+      console.error("Failed to start Vapi call:", error);
+      setError("Failed to connect. Check microphone permissions and Vapi setup in .env.local.");
       setStatus("Connection failed");
     }
   };

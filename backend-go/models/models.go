@@ -2,18 +2,21 @@ package models
 
 import (
 	"mindful/backend-go/database"
+	"strings"
 )
 
 type Journal struct {
-	ID      int    `json:"id"`
-	Content string `json:"content"`
+	ID        int    `json:"id"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
 }
 
 type GamePlan struct {
-	ID        int    `json:"id"`
-	Tasks     string `json:"tasks"`
-	Summary   string `json:"summary"`
-	CreatedAt string `json:"created_at"`
+	ID             int    `json:"id"`
+	Tasks          string `json:"tasks"`
+	Summary        string `json:"summary"`
+	EmotionalState string `json:"emotional_state"`
+	CreatedAt      string `json:"created_at"`
 }
 
 type JournalEntry struct {
@@ -31,13 +34,13 @@ type Transcript struct {
 }
 
 func StoreJournalEntry(content string) error {
-	query := `INSERT INTO journals (content) VALUES (?)`
+	query := `INSERT INTO journal_entries (content) VALUES (?)`
 	_, err := database.DB.Exec(query, content)
 	return err
 }
 
 func GetAllJournalEntries() ([]Journal, error) {
-	rows, err := database.DB.Query(`SELECT id, content FROM journals`)
+	rows, err := database.DB.Query(`SELECT id, content, created_at FROM journal_entries ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +49,7 @@ func GetAllJournalEntries() ([]Journal, error) {
 	var journals []Journal
 	for rows.Next() {
 		var journal Journal
-		if err := rows.Scan(&journal.ID, &journal.Content); err != nil {
+		if err := rows.Scan(&journal.ID, &journal.Content, &journal.CreatedAt); err != nil {
 			return nil, err
 		}
 		journals = append(journals, journal)
@@ -55,11 +58,7 @@ func GetAllJournalEntries() ([]Journal, error) {
 }
 
 func StoreGamePlan(tasks []string, summary string, emotionalState string) error {
-	// Convert tasks slice to a single string
-	tasksText := ""
-	for _, task := range tasks {
-		tasksText += task + "\n"
-	}
+	tasksText := strings.Join(tasks, "\n")
 
 	query := `INSERT INTO game_plans (tasks, summary, emotional_state) VALUES (?, ?, ?)`
 	_, err := database.DB.Exec(query, tasksText, summary, emotionalState)
@@ -67,7 +66,7 @@ func StoreGamePlan(tasks []string, summary string, emotionalState string) error 
 }
 
 func GetAllGamePlans() ([]GamePlan, error) {
-	rows, err := database.DB.Query(`SELECT id, tasks, summary, emotional_state FROM game_plans`)
+	rows, err := database.DB.Query(`SELECT id, tasks, summary, emotional_state, created_at FROM game_plans ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +75,7 @@ func GetAllGamePlans() ([]GamePlan, error) {
 	var gamePlans []GamePlan
 	for rows.Next() {
 		var gamePlan GamePlan
-		if err := rows.Scan(&gamePlan.ID, &gamePlan.Tasks, &gamePlan.Summary, &gamePlan.CreatedAt); err != nil {
+		if err := rows.Scan(&gamePlan.ID, &gamePlan.Tasks, &gamePlan.Summary, &gamePlan.EmotionalState, &gamePlan.CreatedAt); err != nil {
 			return nil, err
 		}
 		gamePlans = append(gamePlans, gamePlan)

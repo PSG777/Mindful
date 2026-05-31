@@ -2,6 +2,7 @@ package handlers
 
 import (
     "encoding/json"
+    "mindful/backend-go/debuglog"
     "mindful/backend-go/models"
     "mindful/backend-go/utils"
     "net/http"
@@ -56,5 +57,10 @@ func AnalyzeAndStoreGamePlanHandler(w http.ResponseWriter, r *http.Request) {
 
     response := map[string]string{"message": "Game plan generated and stored successfully"}
     w.Header().Set("Content-Type", "application/json")
+    // #region agent log
+    debuglog.Write("H-A", "handlers/analyze.go:AnalyzeAndStoreGamePlanHandler", "analyze succeeded", map[string]interface{}{
+        "taskCount": len(tasks), "emotionalState": emotionalState,
+    })
+    // #endregion
     json.NewEncoder(w).Encode(response)
 }

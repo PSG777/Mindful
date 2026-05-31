@@ -10,8 +10,6 @@ import (
 	"google.golang.org/genai"
 	"log"
 	"os"
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
 )
 
 func GenerateGamePlan(transcripts []string, journals []string) (tasks []string, summary string, err error) {
@@ -134,30 +132,41 @@ func containsWord(summary string, words []string) bool {
 }
 
 // AnalyzeEmotion analyzes the emotion of a given text content.
+
 func AnalyzeEmotion(content string) (string, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return "", fmt.Errorf("GEMINI_API_KEY is not set")
 	}
 
-	client, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:  apiKey,
+		Backend: genai.BackendGeminiAPI,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create gemini client: %w", err)
 	}
-	defer client.Close()
 
-	model := client.GenerativeModel("gemini-pro")
-	prompt := fmt.Sprintf("Analyze the following journal entry and identify the primary emotion. Respond with only a single word (e.g., Happy, Sad, Anxious, Reflective, Grateful, etc.). Journal Entry: %s", content)
-	resp, err := model.GenerateContent(context.Background(), genai.Text(prompt))
+	prompt := fmt.Sprintf(
+		"Analyze the following journal entry and identify the primary emotion. Respond with only a single word (e.g., Happy, Sad, Anxious, Reflective, Grateful, etc.). Journal Entry: %s",
+		content,
+	)
+
+	result, err := client.Models.GenerateContent(
+		ctx,
+		"gemini-2.5-flash",
+		genai.Text(prompt),
+		nil,
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
-	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-		if part, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-			return string(part), nil
-		}
+	emotion := strings.TrimSpace(result.Text())
+	if emotion == "" {
+		return "Neutral", nil
 	}
 
-	return "Neutral", nil
+	return emotion, nil
 }

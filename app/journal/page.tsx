@@ -42,7 +42,7 @@ interface TranscriptDetail {
   created_at?: string;
 }
 
-const API_BASE_URL = "https://mindful-wbz7.onrender.com";
+const API_BASE_URL = "http://localhost:8080";
 
 export default function JournalPage() {
   const [newEntry, setNewEntry] = useState("");
@@ -67,8 +67,8 @@ export default function JournalPage() {
       console.log('=== FETCHING HISTORY DATA ===');
       
       const [transcriptsRes, journalsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/transcripts`),
-        fetch(`${API_BASE_URL}/journals`),
+        fetch(`${API_BASE_URL}/transcripts/`),
+        fetch(`${API_BASE_URL}/journals/`),
       ]);
       
       console.log('Transcripts response status:', transcriptsRes.status);
@@ -206,7 +206,7 @@ export default function JournalPage() {
     console.log("Triggering new game plan analysis from journal entry...");
     try {
       // We don't need to wait for this or handle the response, just fire and forget
-      fetch(`${API_BASE_URL}/gameplan/analyze`);
+      fetch(`${API_BASE_URL}/gameplan/analyze`, { method: 'POST' });
     } catch (error) {
       console.error('Error triggering game plan analysis:', error);
     }

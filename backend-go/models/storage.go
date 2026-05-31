@@ -6,12 +6,6 @@ import (
 	"fmt"
 )
 
-type Transcript struct {
-	ID         int    `json:"id"`
-	SessionID  string `json:"session_id"`
-	Transcript string `json:"transcript"`
-}
-
 var db *sql.DB
 
 func InitDatabase(database *sql.DB) {
